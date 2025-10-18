@@ -1,0 +1,39 @@
+# ===== TERRAFORM VARIABLES VALUES =====
+# Скопируйте в terraform.tfvars и заполните реальными значениями
+
+# Environment
+environment = "production"  # или "staging"
+
+# AWS
+aws_region = "eu-central-1"
+
+# VPC
+vpc_cidr             = "10.0.0.0/16"
+availability_zones   = ["eu-central-1a", "eu-central-1b", "eu-central-1c"]
+private_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+public_subnet_cidrs  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+
+# RDS PostgreSQL
+db_instance_class    = "db.t4g.micro"       # staging: db.t4g.micro, production: db.t4g.small+
+db_allocated_storage = 20                    # GB
+db_username          = "zaman_admin"         # Измените!
+db_password          = "CHANGE_ME_STRONG_PASSWORD"  # Измените! Используйте strong password
+
+# Redis
+redis_node_type = "cache.t4g.micro"         # staging: micro, production: small+
+
+# ECS
+ecs_task_cpu        = "512"                  # 0.5 vCPU
+ecs_task_memory     = "1024"                 # 1 GB
+ecs_desired_count   = 2                      # Начальное количество
+ecs_min_capacity    = 2                      # Минимум для high availability
+ecs_max_capacity    = 10                     # Максимум при автомасштабировании
+
+# Docker Image
+ecr_repository_url = "123456789012.dkr.ecr.eu-central-1.amazonaws.com/zaman-assistant"  # Ваш ECR URL
+
+# SSL Certificate
+acm_certificate_arn = "arn:aws:acm:eu-central-1:123456789012:certificate/xxxxxx"  # Ваш ACM ARN
+
+# Logs
+log_retention_days = 7  # staging: 7, production: 30+

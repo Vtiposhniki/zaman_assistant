@@ -1,0 +1,247 @@
+version: '3.8'
+
+# ===== PRODUCTION DOCKER COMPOSE =====
+
+services:
+  # ===== BACKEND =====
+  backend:
+    image: ghcr.io/yourorg/zaman_assistant:latest
+    container_name: zaman-backend
+    
+    restart: always
+    
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - REDIS_URL=redis://redis:6379/0
+      - OPENAI_HUB_KEY=${OPENAI_HUB_KEY}
+      - OPENAI_HUB_URL=${OPENAI_HUB_URL}
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+      - MOCK_MODE=false
+      - DEBUG=false
+      - SENTRY_DSN=${SENTRY_DSN}
+    
+    volumes:
+      - backend-data:/app/data
+      - backend-logs:/app/logs
+    
+    ports:
+      - "8000:8000"
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    
+    networks:
+      - zaman-network
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+
+  # ===== POSTGRESQL =====
+  postgres:
+    image: postgres:16-alpine
+    container_name: zaman-postgres
+    
+    restart: always
+    
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/init.sql:/docker-entrypoint-initdb.d/init.sql
+    
+    ports:
+      - "5432:5432"
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    
+    networks:
+      - zaman-network
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ===== REDIS =====
+  redis:
+    image: redis:7-alpine
+    container_name: zaman-redis
+    
+    restart: always
+    
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD}
+    
+    volumes:
+      - redis-data:/data
+    
+    ports:
+      - "6379:6379"
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    
+    networks:
+      - zaman-network
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  # ===== NGINX REVERSE PROXY =====
+  nginx:
+    image: nginx:alpine
+    container_name: zaman-nginx
+    
+    restart: always
+    
+    volumes:
+      - ./infra/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/ssl:/etc/nginx/ssl:ro
+      - nginx-logs:/var/log/nginx
+    
+    ports:
+      - "80:80"
+      - "443:443"
+    
+    depends_on:
+      - backend
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    networks:
+      - zaman-network
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ===== PROMETHEUS (Monitoring) =====
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: zaman-prometheus
+    
+    restart: always
+    
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    
+    ports:
+      - "9090:9090"
+    
+    networks:
+      - zaman-network
+
+  # ===== GRAFANA (Dashboards) =====
+  grafana:
+    image: grafana/grafana:latest
+    container_name: zaman-grafana
+    
+    restart: always
+    
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./infra/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    
+    ports:
+      - "3000:3000"
+    
+    depends_on:
+      - prometheus
+    
+    networks:
+      - zaman-network
+
+# ===== VOLUMES =====
+volumes:
+  backend-data:
+    driver: local
+  backend-logs:
+    driver: local
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  nginx-logs:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+# ===== NETWORK =====
+networks:
+  zaman-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
