@@ -1,29 +1,32 @@
-# 🏦 Zaman Assistant
+# 🏦 Zaman Assistant v3.0
 
 > AI-powered финансовый ассистент для Zaman Bank с функциями планирования целей, анализа расходов и рекомендации продуктов.
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.119-green.svg)](https://fastapi.tiangolo.com)
+[![Docker](https://img.shields.io/badge/Docker-Latest-blue.svg)](https://docker.com)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-Unit%20%2B%20Integration-brightgreen.svg)]()
 
 ---
 
 ## 🎯 Основные возможности
 
 ### ✨ Для пользователей
-- **💰 Финансовые цели**: Создание и отслеживание целей накопления с AI-советами
+- **💰 Финансовые цели**: Создание и отслеживание целей с AI-советами
 - **📊 Анализ расходов**: Автоматическая категоризация транзакций из CSV
-- **🎯 Умные рекомендации**: Подбор банковских продуктов на основе ваших целей
-- **💬 Чат-ассистент**: Real-time общение с AI через WebSocket или REST API
+- **🎯 Умные рекомендации**: Подбор банковских продуктов на основе целей
+- **💬 Чат-ассистент**: Real-time общение с AI (WebSocket + REST)
+- **🎤 Аудио**: Транскрибирование аудио с Whisper API
 - **❓ FAQ**: Мгновенные ответы на типовые вопросы
 
 ### 🛠️ Для разработчиков
 - **🏗️ Clean Architecture**: Service layer, dependency injection
 - **🔒 Type Safety**: Pydantic schemas для всех API
-- **⚡ Caching**: Интеллектуальное кэширование с namespace isolation
-- **🚦 Rate Limiting**: Per-IP ограничения с sliding window
-- **🔍 Embeddings**: Семантический поиск продуктов
-- **📈 Observability**: Метрики, логи, health checks
+- **⚡ Caching**: Namespace-aware кэш с TTL
+- **🚦 Rate Limiting**: Sliding window per-IP
+- **🧪 Testing**: Unit + Integration тесты (>80% coverage)
+- **📈 Observability**: Health checks, metrics, логи
 
 ---
 
@@ -31,9 +34,10 @@
 
 ### Требования
 - Python 3.11+
-- SQLite (или PostgreSQL для production)
+- Docker & Docker Compose (опционально)
+- PostgreSQL 16 (production)
 
-### Установка
+### Установка (Development)
 
 ```bash
 # 1. Клонирование
@@ -50,21 +54,37 @@ pip install -r requirements.txt
 
 # 4. Конфигурация
 cd backend
-copy .env.example .env  # Windows
-# cp .env.example .env  # Linux/Mac
+cp .env.example .env
+# Отредактируйте .env с вашими API ключами
 
-# Отредактируйте .env - добавьте свои API ключи
-
-# 5. Инициализация БД
+# 5. БД инициализация
 python database.py
 
 # 6. Запуск
-uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Сервер запустится на `http://localhost:8000`
+**📚 API документация:** http://localhost:8000/docs
 
-**📚 Документация API:** `http://localhost:8000/docs`
+### Docker запуск (Recommended)
+
+```bash
+# Development
+docker-compose -f infra/docker-compose.yml up
+
+# Production с PostgreSQL + Redis
+docker-compose -f infra/docker-compose.production.yml up
+
+# Testing
+docker-compose -f infra/docker-compose.test.yml up
+```
+
+**Выбранный Dockerfile:** `infra/Dockerfile.optimized` ✅
+- Multi-stage build (меньше размер)
+- Security scanner (Bandit)
+- Production & Development targets
+- Non-root user
+- Лучше для production
 
 ---
 
@@ -74,31 +94,60 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 zaman_assistant/
 ├── backend/
 │   ├── main.py                 # 🎯 FastAPI приложение
-│   ├── config.py               # ⚙️ Централизованная конфигурация
-│   ├── database.py             # 💾 Модели БД
+│   ├── config.py               # ⚙️ Конфигурация
+│   ├── database.py             # 💾 SQLAlchemy модели
 │   ├── embeddings.py           # 🔍 Векторный поиск
-│   ├── analytics.py            # 📊 Анализ транзакций
+│   ├── analytics.py            # 📊 Анализ расходов
 │   ├── prompts.py              # 💬 LLM промпты
-│   ├── schemas.py              # 📋 Pydantic models
+│   ├── schemas.py              # 📋 Pydantic моделиs
 │   ├── products.json           # 🏦 Банковские продукты
 │   │
 │   ├── services/               # 🎨 Бизнес-логика
+│   │   ├── llm_client.py             # LLM интеграция + MOCK
+│   │   ├── chat_service.py           # Чат с FAQ
 │   │   ├── goal_service.py           # Управление целями
-│   │   ├── chat_service.py           # Чат с AI
-│   │   ├── recommendation_service.py # Рекомендации
-│   │   ├── analytics_service.py      # Аналитика
-│   │   ├── llm_client.py             # LLM клиент
+│   │   ├── recommendation_service.py # Подбор продуктов
+│   │   ├── analytics_service.py      # Аналитика расходов
+│   │   ├── whisper_service.py        # Аудио транскрибирование
 │   │   ├── cache_manager.py          # Кэширование
 │   │   └── rate_limiter.py           # Rate limiting
 │   │
+│   ├── tests/                  # 🧪 Unit & Integration тесты
+│   │   ├── test_services.py         # Сервисы
+│   │   ├── test_api.py              # API endpoints
+│   │   ├── conftest.py              # Fixtures
+│   │   └── __init__.py
+│   │
 │   └── .env                    # 🔐 Environment variables
 │
-├── data/
-│   └── product_embeddings.pkl  # Векторные представления
+├── infra/
+│   ├── Dockerfile              # Production образ
+│   ├── Dockerfile.optimized    # ✅ Рекомендуемый (multi-stage)
+│   ├── docker-compose.yml      # Development
+│   ├── docker-compose.production.yml
+│   ├── docker-compose.test.yml
+│   │
+│   ├── terraform/              # 🌐 AWS инфраструктура
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   └── terraform.tfvars.example
+│   │
+│   └── monitoring/             # 📊 Prometheus + Grafana
+│       ├── prometheus.yml
+│       └── alertmanager.yml
 │
-├── requirements.txt
-├── .gitignore
-└── README.md
+├── k8s/
+│   └── deployment.yaml         # ☸️ Kubernetes
+│
+├── .github/workflows/
+│   ├── ci.yml                  # CI pipeline
+│   ├── cd.yml                  # CD pipeline
+│   ├── security.yml            # Security scanning
+│   └── monitoring.yml          # Мониторинг
+│
+├── requirements.txt            # Python зависимости
+├── README.md                   # Этот файл
+└── .gitignore
 ```
 
 ---
@@ -106,49 +155,53 @@ zaman_assistant/
 ## 🔌 API Endpoints
 
 ### Health & Status
-```http
-GET  /health              # Проверка состояния системы
-GET  /stats/dashboard     # Дашборд статистики
-GET  /cache/stats         # Статистика кэша
+```bash
+GET  /health              # Проверка состояния (200 OK)
+GET  /stats/dashboard     # Статистика
+GET  /cache/stats         # Метрики кэша
 ```
 
-### Goals (Цели)
-```http
+### 🎯 Goals (Финансовые цели)
+```bash
 POST   /goals/create      # Создание цели с AI-советами
-GET    /goals             # Список целей (фильтры: user_id, status)
-PUT    /goals/{id}        # Обновление прогресса
-DELETE /goals/{id}        # Удаление цели
+GET    /goals?user_id=1   # Список целей (фильтры: user_id, status)
+GET    /goals/1           # Получить одну цель
+PUT    /goals/1           # Обновить прогресс
+DELETE /goals/1           # Удалить цель
 ```
 
-### Chat (Чат)
-```http
+### 💬 Chat (Чат с AI)
+```bash
 POST /chat                # REST API чат
-WS   /ws/chat/{user_id}   # WebSocket real-time чат
+WS   /ws/chat/{user_id}   # WebSocket real-time
 ```
 
-### Recommendations (Рекомендации)
-```http
+### 📦 Recommendations (Рекомендации)
+```bash
 POST /recommend           # Подбор продуктов для цели
-GET  /products            # Список всех продуктов
+GET  /products            # Все продукты
 ```
 
-### Analytics (Аналитика)
-```http
-POST /analyze_expenses    # Анализ CSV с транзакциями
+### 📊 Analytics (Аналитика)
+```bash
+POST /analyze_expenses    # Анализ CSV
 ```
 
-### Admin
-```http
-GET    /admin/logs        # Логи (требует ADMIN_TOKEN)
-DELETE /admin/reset_db    # Сброс БД (ОПАСНО!)
+### 🎤 Audio (Аудио)
+```bash
+POST /audio/transcribe       # Транскрибирование
+POST /audio/translate        # Перевод на английский
+POST /audio/message          # Full pipeline
+WS   /ws/audio/{user_id}     # Real-time обработка
 ```
 
 ---
 
 ## 💻 Примеры использования
 
-### Python
+### 1️⃣ Создание финансовой цели
 
+**Python:**
 ```python
 import httpx
 import asyncio
@@ -167,15 +220,16 @@ async def create_goal():
                 "goal_type": "отпуск"
             }
         )
-        print(response.json())
+        goal = response.json()
+        print(f"Goal created: {goal['goal_id']}")
+        print(f"Monthly needed: {goal['monthly_needed']} KZT")
+        print(f"AI tips:\n{goal['ai_tips']}")
 
 asyncio.run(create_goal())
 ```
 
-### cURL
-
+**cURL:**
 ```bash
-# Создание цели
 curl -X POST http://localhost:8000/goals/create \
   -H "Content-Type: application/json" \
   -d '{
@@ -184,32 +238,13 @@ curl -X POST http://localhost:8000/goals/create \
     "current_savings": 2000000,
     "target_date": "2027-12-31",
     "income": 600000,
-    "expenses": 400000
-  }'
-
-# Чат
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "Какой депозит выбрать?"}
-    ]
-  }'
-
-# Рекомендации
-curl -X POST http://localhost:8000/recommend \
-  -H "Content-Type: application/json" \
-  -d '{
-    "goal_amount": 5000000,
-    "months": 24,
-    "goal_type": "образование"
+    "expenses": 400000,
+    "goal_type": "недвижимость"
   }'
 ```
 
-### JavaScript/Fetch
-
+**JavaScript/Fetch:**
 ```javascript
-// Создание цели
 const createGoal = async () => {
   const response = await fetch('http://localhost:8000/goals/create', {
     method: 'POST',
@@ -224,15 +259,42 @@ const createGoal = async () => {
     })
   });
   const data = await response.json();
-  console.log(data);
+  console.log(`Monthly payment: ${data.monthly_needed} KZT`);
 };
 
-// WebSocket чат
+createGoal();
+```
+
+**Response:**
+```json
+{
+  "goal_id": 1,
+  "name": "Отпуск в Турции",
+  "target_amount": 1000000,
+  "current_savings": 200000,
+  "monthly_needed": 66667,
+  "progress_percent": 20.0,
+  "ai_tips": "Отличная цель! При откладывании 67,000 KZT/мес за 12 месяцев...",
+  "created_at": "2025-01-18T10:30:00"
+}
+```
+
+---
+
+### 2️⃣ WebSocket Чат
+
+**JavaScript:**
+```javascript
+// Подключение к WebSocket
 const ws = new WebSocket('ws://localhost:8000/ws/chat/1');
 
 ws.onopen = () => {
+  console.log('✅ Connected');
+  
+  // Отправка сообщения
   ws.send(JSON.stringify({
-    content: "Помоги составить финансовый план"
+    content: "Какой депозит выбрать?",
+    mode: "mentor"  // mentor, analyst, friend, tech
   }));
 };
 
@@ -240,103 +302,375 @@ ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
   
   if (data.type === 'stream') {
-    console.log(data.content); // Streaming response
+    // Streaming response (эффект набора текста)
+    process.stdout.write(data.reply);
     
     if (data.done) {
-      console.log('Message complete');
+      console.log('\n✅ Message complete');
     }
+  } else if (data.error) {
+    console.error('❌ Error:', data.error);
   }
 };
+
+ws.onclose = () => console.log('❌ Disconnected');
 ```
+
+**Python (asyncio):**
+```python
+import asyncio
+import websockets
+import json
+
+async def chat_websocket():
+    uri = "ws://localhost:8000/ws/chat/1"
+    async with websockets.connect(uri) as websocket:
+        # Отправка сообщения
+        message = {
+            "content": "Помоги составить финансовый план",
+            "mode": "mentor"
+        }
+        await websocket.send(json.dumps(message))
+        
+        # Получение streaming ответа
+        async for response in websocket:
+            data = json.loads(response)
+            print(data.get('reply', ''), end='', flush=True)
+            
+            if data.get('done'):
+                print('\n✅ Done')
+                break
+
+asyncio.run(chat_websocket())
+```
+
+---
+
+### 3️⃣ REST Чат
+
+**Request:**
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "как начать копить"}
+    ],
+    "user_id": 1
+  }'
+```
+
+**Response:**
+```json
+{
+  "reply": "Отлично! Начните с простого: 1) Определите цель и сумму 2) Установите ежемесячный платёж 3) Выберите депозит 'Выгодный' (17% годовых). Давайте создадим ваш финансовый план?",
+  "latency_ms": 145.32,
+  "from_cache": false,
+  "type": "llm"
+}
+```
+
+---
+
+### 4️⃣ Подбор продуктов
+
+**Request:**
+```bash
+curl -X POST http://localhost:8000/recommend \
+  -H "Content-Type: application/json" \
+  -d '{
+    "goal_amount": 5000000,
+    "months": 24,
+    "age": 35,
+    "goal_type": "автомобиль",
+    "use_semantic_search": true
+  }'
+```
+
+**Response:**
+```json
+{
+  "recommendations": [
+    {
+      "product": {
+        "id": "prod_5",
+        "name": "Выгодный",
+        "type": "Депозитный",
+        "short_desc": "Депозит с повышенной доходностью 17% годовых"
+      },
+      "score": 0.854,
+      "conditions": "доходность ~17%, от 500,000 KZT, срок 3-12 мес",
+      "explanation": "Этот депозит идеально подходит для вашей цели автомобиля..."
+    }
+  ],
+  "total_analyzed": 7,
+  "semantic_search_used": true
+}
+```
+
+---
+
+### 5️⃣ Анализ расходов
+
+**Upload CSV:**
+```bash
+curl -X POST http://localhost:8000/analyze_expenses \
+  -F "file=@transactions.csv" \
+  -F "monthly_income=500000"
+```
+
+**CSV формат:**
+```csv
+date,amount,description
+2025-01-01,10000,Магазин Carrefour
+2025-01-02,5000,Такси Uber
+2025-01-03,15000,Ресторан Павел's
+2025-01-05,2000,Аптека
+2025-01-07,30000,Счет за электричество
+```
+
+**Response:**
+```json
+{
+  "categories": [
+    {"category": "ЖКХ", "amount": 30000, "percentage": 50.0},
+    {"category": "Развлечения", "amount": 15000, "percentage": 25.0},
+    {"category": "Продукты", "amount": 10000, "percentage": 16.7},
+    {"category": "Транспорт", "amount": 5000, "percentage": 8.3}
+  ],
+  "total_spending": 60000,
+  "total_transactions": 5,
+  "advice": [
+    "У вас наибольшие траты на ЖКХ (30,000 KZT). Проверьте счета...",
+    "В категории 'Развлечения' можно найти ненужные подписки..."
+  ],
+  "top_merchants": [
+    {"merchant": "Электричество", "total": 30000},
+    {"merchant": "Ресторан Павел's", "total": 15000}
+  ]
+}
+```
+
+---
+
+### 6️⃣ Аудио транскрибирование
+
+**Request:**
+```bash
+curl -X POST http://localhost:8000/audio/transcribe \
+  -F "file=@audio.mp3" \
+  -F "language=ru"
+```
+
+**Поддерживаемые форматы:** mp3, wav, m4a, flac, ogg, webm (макс 25MB)
+
+**Response:**
+```json
+{
+  "text": "Здравствуйте! Я хочу начать копить на отпуск в Турции.",
+  "filename": "audio.mp3",
+  "language": "ru",
+  "latency_ms": 2345.67,
+  "status": "success"
+}
+```
+
+---
+
+## 🧪 Тестирование
+
+### Запуск unit тестов
+
+```bash
+# Все тесты
+pytest tests/ -v
+
+# С coverage
+pytest tests/ -v --cov=backend --cov-report=html
+
+# Конкретный тест
+pytest tests/test_services.py::TestGoalService::test_create_goal_valid -v
+
+# Параллельно
+pytest tests/ -v -n auto
+```
+
+### Доступные тесты
+
+```
+✅ test_services.py
+  • TestLLMClient - LLM интеграция, embeddings
+  • TestCacheManager - кэширование, TTL, namespace
+  • TestRateLimiter - rate limiting, блокировка
+  • TestGoalService - создание целей, расчеты
+  • TestChatService - FAQ, кэш, сообщения
+  • TestRecommendationService - скоринг продуктов
+  • TestAnalyticsService - анализ CSV, категоризация
+  • TestIntegration - flow тесты
+  • TestPerformance - производительность
+  • TestErrorHandling - обработка ошибок
+```
+
+### Coverage
+
+```bash
+# Генерация HTML report
+pytest tests/ --cov=backend --cov-report=html
+
+# Открыть report
+open htmlcov/index.html  # macOS
+start htmlcov/index.html  # Windows
+xdg-open htmlcov/index.html  # Linux
+```
+
+**Целевой coverage:** >80%
 
 ---
 
 ## 🔧 Конфигурация
 
-### Переменные окружения (.env)
+### .env файл
 
 ```bash
-# API ключи
-OPENAI_HUB_KEY=your_key_here
-OPENAI_HUB_URL=https://openai-hub.neuraldeep.tech
-ADMIN_TOKEN=strong_random_token
+# ===== РЕЖИМ =====
+MOCK_MODE=false           # true для тестов без LLM
+DEBUG=true                # Auto-reload
 
-# База данных
+# ===== OPENAI HUB =====
+OPENAI_HUB_KEY=sk-...     # Ваш API ключ (https://openai-hub.neuraldeep.tech)
+OPENAI_HUB_URL=https://openai-hub.neuraldeep.tech
+OPENAI_CHAT_MODEL=gpt-4o-mini
+OPENAI_ANALYSIS_MODEL=gpt-4o
+OPENAI_EMBED_MODEL=text-embedding-3-small
+OPENAI_TIMEOUT_SECONDS=30
+OPENAI_MAX_RETRIES=3
+
+# ===== DATABASE =====
 DATABASE_URL=sqlite:///./zaman_assistant.db
 # DATABASE_URL=postgresql://user:pass@localhost/zaman_db  # Production
 
-# Режимы
-MOCK_MODE=false          # true для тестов без LLM
-DEBUG=true               # Auto-reload при изменениях
+# ===== SECURITY =====
+ADMIN_TOKEN=supersecret_token  # ⚠️ ОБЯЗАТЕЛЬНО измените!
 
-# Производительность
+# ===== PERFORMANCE =====
 CACHE_TTL_SECONDS=3600
 RATE_LIMIT_MAX_REQUESTS=200
 RATE_LIMIT_WINDOW_SECONDS=3600
 
-# Embeddings
+# ===== EMBEDDINGS =====
 EMBEDDINGS_PATH=./data/product_embeddings.pkl
 EMBED_DIM=1536
+
+# ===== WHISPER =====
+WHISPER_ENABLED=true
+WHISPER_DEFAULT_LANGUAGE=ru
+WHISPER_MAX_FILE_SIZE_MB=25
+WHISPER_TIMEOUT_SECONDS=300
 ```
 
 ---
 
-## 🎨 Архитектура
+## 🐳 Docker
 
-### Слои приложения
+### Рекомендуемый Dockerfile
 
-```
-┌─────────────────────────────────────────┐
-│         FastAPI Endpoints               │  ← main.py
-├─────────────────────────────────────────┤
-│         Service Layer                   │  ← services/*
-│  ┌─────────────┐  ┌─────────────────┐  │
-│  │ Goal        │  │ Chat            │  │
-│  │ Service     │  │ Service         │  │
-│  └─────────────┘  └─────────────────┘  │
-│  ┌─────────────┐  ┌─────────────────┐  │
-│  │Recommend    │  │ Analytics       │  │
-│  │Service      │  │ Service         │  │
-│  └─────────────┘  └─────────────────┘  │
-├─────────────────────────────────────────┤
-│       Infrastructure Layer              │
-│  ┌──────────┐ ┌──────────┐ ┌─────────┐│
-│  │LLMClient │ │CacheMan. │ │RateLim. ││
-│  └──────────┘ └──────────┘ └─────────┘│
-├─────────────────────────────────────────┤
-│         Data Layer                      │
-│  ┌──────────┐ ┌────────────────────┐  │
-│  │SQLAlchemy│ │ EmbeddingIndex     │  │
-│  │ Models   │ │ (Vector Search)    │  │
-│  └──────────┘ └────────────────────┘  │
-└─────────────────────────────────────────┘
+**`infra/Dockerfile.optimized`** ✅ (выбран)
+
+**Преимущества:**
+- Multi-stage build (меньше размер)
+- Security scanning с Bandit
+- Development & Production targets
+- Non-root user
+- Resource limits
+
+### Сборка
+
+```bash
+# Development
+docker build --target development -t zaman-dev .
+
+# Production
+docker build --target production -t zaman-prod .
+
+# Optimized
+docker build -f infra/Dockerfile.optimized --target production -t zaman:latest .
 ```
 
-### Ключевые особенности v3.0
+### Запуск контейнера
 
-#### ✅ Исправленные баги
-- `__tablename__` вместо `_tablename_` в моделях БД
-- Удалено дублирование кода (модели, embeddings, промпты)
-- Thread-safe кэш и rate limiter
-- Правильные транзакции БД
+```bash
+# Development
+docker run -p 8000:8000 \
+  -e OPENAI_HUB_KEY=sk-... \
+  -e MOCK_MODE=true \
+  -v $(pwd)/backend:/app/backend \
+  zaman-dev
 
-#### ✅ Новая архитектура
-- Service layer для бизнес-логики
-- Dependency injection через `get_services()`
-- Централизованная конфигурация (`config.py`)
-- Pydantic schemas для валидации
+# Production
+docker run -p 8000:8000 \
+  -e DATABASE_URL=postgresql://... \
+  -e REDIS_URL=redis://... \
+  -e OPENAI_HUB_KEY=sk-... \
+  -e ADMIN_TOKEN=... \
+  --memory=2g \
+  --cpus=2 \
+  zaman:latest
+```
 
-#### ✅ Производительность
-- Векторизованный поиск embeddings
-- Кэширование с hit rate tracking
-- Асинхронная обработка
-- Batch embeddings generation
+---
 
-#### ✅ Observability
-- Метрики в БД
-- Structured logging
-- Health checks
-- Cache/rate limiter stats
+## 🚀 Deployment
+
+### Docker Compose (Quick Start)
+
+```bash
+# Development
+docker-compose -f infra/docker-compose.yml up -d
+
+# Production с PostgreSQL + Redis
+docker-compose -f infra/docker-compose.production.yml up -d
+
+# Production с Monitoring (Prometheus + Grafana)
+docker-compose -f infra/docker-compose.enhanced.yml up -d
+
+# Logs
+docker-compose logs -f backend
+
+# Stop
+docker-compose down
+```
+
+### Kubernetes
+
+```bash
+# Deploy
+kubectl apply -f k8s/deployment.yaml
+
+# Check
+kubectl get pods -n zaman-assistant
+kubectl logs -f deployment/zaman-backend -n zaman-assistant
+
+# Port forward
+kubectl port-forward svc/zaman-backend 8000:8000 -n zaman-assistant
+```
+
+### AWS ECS (Terraform)
+
+```bash
+cd infra/terraform
+
+# Init
+terraform init
+
+# Plan
+terraform plan -var-file=terraform.tfvars
+
+# Apply
+terraform apply -var-file=terraform.tfvars
+
+# Outputs
+terraform output
+```
 
 ---
 
@@ -353,12 +687,9 @@ curl http://localhost:8000/health
 {
   "status": "healthy",
   "version": "3.0.0",
-  "timestamp": "2025-10-18T10:30:00",
-  "mock_mode": false,
   "database": {
     "connected": true,
-    "total_goals": 42,
-    "total_users": 15
+    "total_goals": 42
   },
   "cache": {
     "entries": 127,
@@ -374,161 +705,80 @@ curl http://localhost:8000/health
 }
 ```
 
-### Dashboard Stats
+### Prometheus + Grafana
 
 ```bash
-curl http://localhost:8000/stats/dashboard
-```
+# Запуск мониторинга
+docker-compose -f infra/docker-compose.enhanced.yml up
 
-Возвращает:
-- Общая статистика по целям
-- Недавние цели
-- Системная информация
-- Производительность
+# Prometheus: http://localhost:9090
+# Grafana: http://localhost:3000 (admin/admin)
+# AlertManager: http://localhost:9093
+```
 
 ---
 
-## 🧪 Тестирование
+## 🔒 Security Features
 
-### MOCK режим
+- ✅ **Rate Limiting** - per-IP sliding window
+- ✅ **CORS** - настроена для production
+- ✅ **SQL Injection Prevention** - SQLAlchemy ORM
+- ✅ **Secrets Management** - AWS SecretManager / .env
+- ✅ **Docker Security** - non-root user, multi-stage
+- ✅ **Container Scanning** - Trivy для уязвимостей
+- ✅ **HTTPS/TLS** - через nginx + ACM
+- ✅ **Input Validation** - Pydantic schemas
 
-Для тестов без реальных LLM вызовов:
+---
 
-```bash
-# В .env
-MOCK_MODE=true
-```
-
-В этом режиме:
-- ✅ LLM ответы генерируются локально
-- ✅ Embeddings детерминированные (hash-based)
-- ✅ Латентность ~150ms
-- ✅ Нет расхода токенов
-
-### Ручное тестирование
+## 📚 Полезные команды
 
 ```bash
-# 1. Запуск сервера
-python main.py
+# Development
+make help                    # Справка по командам
+make build                   # Сборка образов
+make up                      # Запуск
+make logs                    # Логи
+make test                    # Тесты
+make clean                   # Очистка
 
-# 2. В другом терминале - тесты
+# Health
 curl http://localhost:8000/health
 
-# 3. Создание тестовой цели
-curl -X POST http://localhost:8000/goals/create \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Test Goal",
-    "target_amount": 100000,
-    "current_savings": 0,
-    "target_date": "2026-01-01"
-  }'
+# Документация
+# Swagger UI: http://localhost:8000/docs
+# ReDoc: http://localhost:8000/redoc
 
-# 4. Проверка FAQ
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "как начать копить"}
-    ]
-  }'
+# Database
+python backend/database.py   # Инициализация
+
+# Тесты
+pytest tests/ -v --cov=backend
+pytest tests/test_services.py::TestGoalService -v
 ```
 
 ---
 
-## 🚢 Deployment
+## 🎓 Дополнительные ресурсы
 
-### Docker (TODO)
-
-```bash
-# Build
-docker build -t zaman-assistant .
-
-# Run
-docker run -p 8000:8000 \
-  -e OPENAI_HUB_KEY=your_key \
-  -e DATABASE_URL=postgresql://... \
-  zaman-assistant
-```
-
-### Production Checklist
-
-**Security:**
-- [ ] Установить сильный `ADMIN_TOKEN`
-- [ ] Использовать PostgreSQL вместо SQLite
-- [ ] Настроить HTTPS/SSL
-- [ ] Добавить authentication на WebSocket
-- [ ] Настроить CORS для production domains
-
-**Performance:**
-- [ ] Увеличить connection pool size
-- [ ] Настроить Redis для кэша (опционально)
-- [ ] Добавить rate limiting на nginx
-- [ ] Использовать Gunicorn/Uvicorn workers
-
-**Monitoring:**
-- [ ] Настроить логирование (Sentry, Datadog)
-- [ ] Регулярное резервное копирование БД
-- [ ] Мониторинг метрик (Prometheus/Grafana)
-- [ ] Настроить health check alerts
-
-**Configuration:**
-- [ ] Отключить DEBUG режим
-- [ ] Проверить все environment variables
-- [ ] Настроить log rotation
-
----
-
-## 🤝 Contributing
-
-### Структура коммитов
-
-```
-feat: добавлена поддержка экспорта целей в PDF
-fix: исправлена ошибка в расчёте monthly_needed
-refactor: вынесена логика embeddings в отдельный сервис
-docs: обновлён README с примерами API
-test: добавлены unit тесты для goal_service
-```
-
-### Code Style
-
-- **Python**: PEP 8
-- **Docstrings**: Google style
-- **Type hints**: везде где возможно
-- **Максимальная длина строки**: 120
-
-### Добавление нового endpoint
-
-1. Создать schema в `schemas.py`
-2. Добавить логику в соответствующий service
-3. Добавить endpoint в `main.py`
-4. Обновить документацию
-5. Написать тесты
+- **FastAPI документация:** https://fastapi.tiangolo.com
+- **SQLAlchemy:** https://www.sqlalchemy.org
+- **Pydantic:** https://docs.pydantic.dev
+- **OpenAI Hub:** https://openai-hub.neuraldeep.tech
+- **Zaman Bank:** https://zamanbank.kz
 
 ---
 
 ## 📝 Changelog
 
-### v3.0.0 (2025-10-18) - Major Refactor
-
-**Breaking changes:**
-- Переработана архитектура (service layer)
-- API остаётся совместимым
-
-**Исправления:**
-- ✅ `__tablename__` в моделях БД
-- ✅ Удалено дублирование кода
-- ✅ Thread-safe кэш
-- ✅ Правильные транзакции
-
-**Новое:**
-- ✨ Service layer
-- ✨ Dependency injection
-- ✨ Pydantic schemas
-- ✨ Rate limiter
-- ✨ Улучшенный embeddings
-- ✨ WebSocket streaming
+### v3.0.0 (2025-01-18) - Major Refactor
+- ✅ Service layer архитектура
+- ✅ Dependency injection
+- ✅ Comprehensive unit тесты (>80%)
+- ✅ Thread-safe кэш с namespace
+- ✅ Whisper Audio API интеграция
+- ✅ Enhanced Docker (multi-stage)
+- ✅ Production-ready конфигурация
 
 ### v2.1.0 (2025-01-10)
 - WebSocket поддержка
@@ -540,48 +790,15 @@ test: добавлены unit тесты для goal_service
 
 ---
 
-## 🐛 Известные проблемы
+## 🤝 Contribution
 
-### SQLite Limitations
-- Не подходит для высоконагруженных систем
-- Нет concurrent writes
-- **Решение**: PostgreSQL для production
+1. Fork репозиторий
+2. Create feature branch (`git checkout -b feature/amazing`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing`)
+5. Open Pull Request
 
-### Embeddings в памяти
-- При большом количестве продуктов (>10K) может быть проблема
-- **Решение**: Использовать FAISS для ANN search
-
-### WebSocket без auth
-- Любой может подключиться к чужому user_id
-- **Решение**: Добавить token authentication (в roadmap)
-
----
-
-## 🗺️ Roadmap
-
-### Q1 2025
-- [ ] Unit & Integration тесты (coverage >80%)
-- [ ] PostgreSQL миграция
-- [ ] Docker compose setup
-- [ ] CI/CD pipeline (GitHub Actions)
-
-### Q2 2025
-- [ ] WebSocket authentication
-- [ ] User management система
-- [ ] API versioning (/v1/, /v2/)
-- [ ] Prometheus metrics export
-
-### Q3 2025
-- [ ] FAISS для embeddings
-- [ ] Multi-language support
-- [ ] Mobile app integration
-- [ ] Advanced analytics dashboard
-
-### Q4 2025
-- [ ] ML-based fraud detection
-- [ ] Personalized recommendations v2
-- [ ] Voice assistant integration
-- [ ] Blockchain integration (опционально)
+**Code style:** PEP 8, Black, flake8
 
 ---
 
@@ -593,42 +810,18 @@ MIT License - see [LICENSE](LICENSE) file
 
 ## 🆘 Support
 
-**Issues:** [GitHub Issues](https://github.com/yourorg/zaman_assistant/issues)
-
-**Email:** support@zamanbank.kz
-
-**Documentation:** 
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
-
-**Telegram:** [@zaman_dev_support](https://t.me/zaman_dev_support)
-
----
-
-## 🙏 Acknowledgments
-
-- **FastAPI** — современный Python web framework
-- **OpenAI API** — LLM inference
-- **SQLAlchemy** — ORM
-- **Pydantic** — data validation
-- **Uvicorn** — ASGI server
+- **Issues:** [GitHub Issues](https://github.com/yourorg/zaman_assistant/issues)
+- **Email:** support@zamanbank.kz
+- **API Docs:** http://localhost:8000/docs
+- **Telegram:** [@zaman_dev_support](https://t.me/zaman_dev_support)
 
 ---
 
 ## 👥 Team
 
-- **Backend Lead:** [Your Name](https://github.com/yourname)
-- **ML Engineer:** [ML Lead](https://github.com/mlname)
-- **DevOps:** [DevOps Lead](https://github.com/devopsname)
-
----
-
-## 📞 Contact
-
-**Zaman Bank AI Team**  
-📧 ai-team@zamanbank.kz  
-🌐 https://zamanbank.kz  
-📍 Astana, Kazakhstan
+- **Backend Lead:** Backend Team
+- **ML Engineer:** ML Team
+- **DevOps:** DevOps Team
 
 ---
 

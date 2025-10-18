@@ -1,0 +1,590 @@
+# ===== ENHANCED KUBERNETES DEPLOYMENT =====
+# Production-ready Kubernetes configuration with security, monitoring, and scalability
+
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zaman-assistant
+  labels:
+    name: zaman-assistant
+    environment: production
+
+---
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zaman-config
+  namespace: zaman-assistant
+data:
+  MOCK_MODE: "false"
+  DEBUG: "false"
+  CACHE_TTL_SECONDS: "3600"
+  RATE_LIMIT_MAX_REQUESTS: "200"
+  RATE_LIMIT_WINDOW_SECONDS: "3600"
+  LOG_LEVEL: "INFO"
+  WORKERS: "4"
+
+---
+# Secret (создайте отдельно с реальными значениями)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: zaman-secrets
+  namespace: zaman-assistant
+type: Opaque
+stringData:
+  OPENAI_HUB_KEY: "your-key-here"
+  ADMIN_TOKEN: "your-admin-token"
+  DB_PASSWORD: "your-db-password"
+  REDIS_PASSWORD: "your-redis-password"
+
+---
+# PostgreSQL StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: zaman-assistant
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_DB
+          value: "zaman_db"
+        - name: POSTGRES_USER
+          value: "zaman"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: zaman-secrets
+              key: DB_PASSWORD
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - zaman
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - zaman
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 999
+          capabilities:
+            drop:
+            - ALL
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-storage
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 20Gi
+      storageClassName: gp3
+
+---
+# PostgreSQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: zaman-assistant
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+  clusterIP: None
+  selector:
+    app: postgres
+
+---
+# Redis Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: zaman-assistant
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+          name: redis
+        command:
+        - redis-server
+        - --appendonly
+        - "yes"
+        - --maxmemory
+        - "1gb"
+        - --maxmemory-policy
+        - allkeys-lru
+        - --requirepass
+        - $(REDIS_PASSWORD)
+        - --tcp-keepalive
+        - "60"
+        - --timeout
+        - "300"
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: zaman-secrets
+              key: REDIS_PASSWORD
+        volumeMounts:
+        - name: redis-storage
+          mountPath: /data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 999
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: redis-storage
+        persistentVolumeClaim:
+          claimName: redis-pvc
+
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: zaman-assistant
+spec:
+  ports:
+  - port: 6379
+    targetPort: 6379
+  selector:
+    app: redis
+
+---
+# Redis PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: zaman-assistant
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: gp3
+
+---
+# Backend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zaman-backend
+  namespace: zaman-assistant
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: zaman-backend
+  template:
+    metadata:
+      labels:
+        app: zaman-backend
+        version: v3.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: backend
+        image: ghcr.io/yourorg/zaman_assistant:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://zaman:$(DB_PASSWORD)@postgres:5432/zaman_db"
+        - name: REDIS_URL
+          value: "redis://:$(REDIS_PASSWORD)@redis:6379/0"
+        - name: OPENAI_HUB_KEY
+          valueFrom:
+            secretKeyRef:
+              name: zaman-secrets
+              key: OPENAI_HUB_KEY
+        - name: ADMIN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: zaman-secrets
+              key: ADMIN_TOKEN
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: zaman-secrets
+              key: DB_PASSWORD
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: zaman-secrets
+              key: REDIS_PASSWORD
+        envFrom:
+        - configMapRef:
+            name: zaman-config
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/data
+        - name: logs-volume
+          mountPath: /app/logs
+        - name: tmp-volume
+          mountPath: /app/tmp
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "4000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: backend-data-pvc
+      - name: logs-volume
+        emptyDir: {}
+      - name: tmp-volume
+        emptyDir: {}
+
+---
+# Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: zaman-backend
+  namespace: zaman-assistant
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: zaman-backend
+
+---
+# Backend PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backend-data-pvc
+  namespace: zaman-assistant
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: gp3
+
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zaman-ingress
+  namespace: zaman-assistant
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+spec:
+  tls:
+  - hosts:
+    - api.zamanbank.kz
+    secretName: zaman-tls
+  rules:
+  - host: api.zamanbank.kz
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: zaman-backend
+            port:
+              number: 8000
+
+---
+# HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: zaman-backend-hpa
+  namespace: zaman-assistant
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: zaman-backend
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      selectPolicy: Max
+
+---
+# PodDisruptionBudget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: zaman-backend-pdb
+  namespace: zaman-assistant
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: zaman-backend
+
+---
+# NetworkPolicy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: zaman-network-policy
+  namespace: zaman-assistant
+spec:
+  podSelector:
+    matchLabels:
+      app: zaman-backend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 443  # For external API calls
+    - protocol: TCP
+      port: 80   # For external API calls
+
+---
+# ServiceMonitor for Prometheus
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: zaman-backend-monitor
+  namespace: zaman-assistant
+spec:
+  selector:
+    matchLabels:
+      app: zaman-backend
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+
+---
+# PrometheusRule for alerting
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: zaman-backend-rules
+  namespace: zaman-assistant
+spec:
+  groups:
+  - name: zaman-backend.rules
+    rules:
+    - alert: ZamanBackendDown
+      expr: up{job="zaman-backend"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Zaman Backend is down"
+        description: "Zaman Backend has been down for more than 1 minute"
+    
+    - alert: ZamanBackendHighCPU
+      expr: rate(container_cpu_usage_seconds_total{container="backend"}[5m]) > 0.8
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Zaman Backend high CPU usage"
+        description: "Zaman Backend CPU usage is above 80% for more than 5 minutes"
+    
+    - alert: ZamanBackendHighMemory
+      expr: container_memory_usage_bytes{container="backend"} / container_spec_memory_limit_bytes > 0.8
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Zaman Backend high memory usage"
+        description: "Zaman Backend memory usage is above 80% for more than 5 minutes"
