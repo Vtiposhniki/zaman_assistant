@@ -1,3 +1,45 @@
+"""
+# main.py - Zaman Assistant Entry Point
+Минимальный entry point.
+Вся логика вынесена в модули.
+
+Запуск:
+    uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+import os
+import logging
+from dotenv import load_dotenv
+
+# Загрузка environment variables
+load_dotenv()
+
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO if os.getenv("DEBUG", "false").lower() != "true" else logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
+# Импорт приложения из фабрики
+from core.app import create_app
+
+# Создание FastAPI app instance
+app = create_app()
+
+
+# ===== ЗАПУСК =====
+if __name__ == "__main__":
+    import uvicorn
+    from config import settings
+    
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 8000)),
+        reload=settings.DEBUG
+    )
+"""
+
+
+
 # main.py — Zaman Assistant Backend (Refactored v3.0)
 import os
 import asyncio
@@ -262,23 +304,181 @@ async def chat(
 
 @app.websocket("/ws/chat/{user_id}")
 async def websocket_chat(websocket: WebSocket, user_id: int):
-    """WebSocket endpoint для real-time чата"""
+    """💬 WebSocket чат Zaman Assistant"""
+    await manager.connect(websocket)
+    chat_service = ChatService(None, llm_client, cache_manager)
+
+    try:
+        while True:
+            # Получаем сообщение от клиента
+            message = await websocket.receive_json()
+            logger.info(f"📩 WS message from user {user_id}: {message}")
+
+            # Определяем режим ассистента
+            mode = message.get("mode", "mentor")
+
+            if mode == "analyst":
+                system_prompt = (
+                    "Ты — финансовый аналитик банка Zaman. "
+                    "Отвечай строго, профессионально, с акцентом на цифры и факты."
+                )
+            elif mode == "friend":
+                system_prompt = (
+                    "Ты — дружелюбный AI-ассистент Zaman. "
+                    "Говори просто, тепло и немного с юмором."
+                )
+            elif mode == "tech":
+                system_prompt = (
+                    "Ты — технический эксперт банка Zaman. "
+                    "Отвечай кратко и по делу, без эмоций."
+                )
+            else:
+                system_prompt = (
+                    "Ты — ментор по финансовым привычкам. "
+                    "Отвечай вдохновляюще, мотивируй и поддерживай пользователя."
+                )
+
+            # Обрабатываем сообщение через ChatService
+            try:
+                response = await chat_service.process_message(
+                    messages=[{"role": "user", "content": message.get("content")}],
+                    user_id=user_id,
+                    system_prompt=system_prompt
+                )
+
+                # Безопасно отправляем ответ клиенту
+                reply_text = response.get("reply") or response.get("text")
+                if reply_text:
+                    await websocket.send_json({"reply": reply_text})
+                    logger.info(f"✅ Sent reply to user {user_id}: {reply_text[:80]}...")
+                else:
+                    await websocket.send_json({"error": "Empty reply"})
+                    logger.warning("⚠️ ChatService вернул пустой ответ")
+
+            except Exception as e:
+                logger.exception("❌ Ошибка в обработке сообщения")
+                await websocket.send_json({"error": f"Internal error: {str(e)}"})
+
+    except WebSocketDisconnect:
+        logger.info(f"🔌 User {user_id} disconnected")
+        await manager.disconnect(websocket)
+    except Exception as e:
+        logger.exception(f"💥 WebSocket error: {e}")
+        await manager.disconnect(websocket)
+
+async def websocket_chat(websocket: WebSocket, user_id: int):
+    """💬 WebSocket чат Zaman Assistant"""
+    await manager.connect(websocket)
+    chat_service = ChatService(None, llm_client, cache_manager)
+
+    try:
+        while True:
+            # 1️⃣ Получаем сообщение от фронта
+            message = await websocket.receive_json()
+            logger.info(f"📩 Incoming message from user {user_id}: {message}")
+
+            # 2️⃣ Определяем режим ассистента
+            mode = message.get("mode", "mentor")
+
+            if mode == "analyst":
+                system_prompt = (
+                    "Ты — финансовый аналитик банка Zaman. "
+                    "Отвечай профессионально, строго, с акцентом на факты и цифры."
+                )
+            elif mode == "friend":
+                system_prompt = (
+                    "Ты — дружелюбный ассистент Zaman. "
+                    "Говори просто, тепло и с юмором, как хороший друг."
+                )
+            elif mode == "tech":
+                system_prompt = (
+                    "Ты — технический специалист Zaman Bank. "
+                    "Отвечай кратко, по делу, без эмоций."
+                )
+            else:  # mentor
+                system_prompt = (
+                    "Ты — ментор по финансовым привычкам в Zaman Bank. "
+                    "Отвечай вдохновляюще и мотивируй пользователя."
+                )
+
+            # 3️⃣ Передаём сообщение в chat_service
+            try:
+                # 🧠 ChatService должен вернуть {"reply": "..."} или {"text": "..."}
+                result = await chat_service.process_websocket_message(
+                    message=message,
+                    user_id=user_id,
+                    websocket=websocket,
+                    system_prompt=system_prompt
+                )
+
+                # 4️⃣ Если сервис ничего не отправил — отправляем вручную
+                if result:
+                    reply_text = result.get("reply") or result.get("text") or result.get("message")
+                    if reply_text:
+                        await websocket.send_json({"reply": reply_text})
+                        logger.info(f"✅ Sent reply to user {user_id}: {reply_text[:60]}...")
+                    else:
+                        logger.warning(f"⚠️ ChatService returned empty reply for user {user_id}")
+                else:
+                    logger.warning(f"⚠️ ChatService returned None for user {user_id}")
+
+            except Exception as e:
+                logger.exception("❌ Error processing chat message")
+                await websocket.send_json({"error": str(e)})
+
+    except WebSocketDisconnect:
+        logger.info(f"🔌 User {user_id} disconnected")
+        await manager.disconnect(websocket)
+    except Exception as e:
+        logger.exception(f"💥 WebSocket error: {e}")
+        await manager.disconnect(websocket)
+
     await manager.connect(websocket)
     chat_service = ChatService(None, llm_client, cache_manager)
     
     try:
         while True:
             message = await websocket.receive_json()
+
+            # 🧠 1. Определяем "режим личности" ассистента
+            mode = message.get("mode", "mentor")  # если не передали, по умолчанию "ментор"
+
+            # 🧠 2. Настраиваем system prompt в зависимости от режима
+            if mode == "analyst":
+                system_prompt = (
+                    "Ты — финансовый аналитик банка Zaman. "
+                    "Говори строго, профессионально, с акцентом на цифры и факты."
+                )
+            elif mode == "friend":
+                system_prompt = (
+                    "Ты — дружелюбный AI-ассистент Zaman. "
+                    "Отвечай тепло, с юмором, простыми словами, как хороший друг."
+                )
+            elif mode == "tech":
+                system_prompt = (
+                    "Ты — технический специалист банка Zaman. "
+                    "Отвечай кратко, чётко и профессионально, без лишних эмоций."
+                )
+            else:  # mentor
+                system_prompt = (
+                    "Ты — ментор по финансовым привычкам в Zaman Bank. "
+                    "Отвечай вдохновляюще, мотивируй и поддерживай пользователя."
+                )
+
+            # 🧠 3. Передаём system_prompt в chat_service
             await chat_service.process_websocket_message(
                 message=message,
                 user_id=user_id,
-                websocket=websocket
+                websocket=websocket,
+                system_prompt=system_prompt  # 👈 новый аргумент
             )
+
     except WebSocketDisconnect:
         await manager.disconnect(websocket)
     except Exception as e:
         logger.exception(f"WebSocket error: {e}")
         await manager.disconnect(websocket)
+
 
 # ===== RECOMMENDATIONS =====
 @app.post("/recommend")
