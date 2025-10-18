@@ -19,8 +19,8 @@ class ZamanAPI {
     }
   }
 
-  // 🟢 Подключение к WebSocket чату
-  connectChat(userId, onMessage, onOpen, onClose) {
+  // 🟢 Подключение к WebSocket чату (новая версия)
+connectChat(userId, onMessage, onOpen, onClose) {
   const isSecure = location.protocol === 'https:';
   const base = this.baseURL.replace(/^https?:\/\//, '');
   const wsUrl = `${isSecure ? 'wss' : 'ws'}://${base}/ws/chat/${userId}`;
@@ -28,45 +28,78 @@ class ZamanAPI {
 
   this.ws.onopen = () => {
     console.log('✅ WebSocket connected:', wsUrl);
-    onOpen && onOpen();
+    if (onOpen) onOpen();
   };
 
   this.ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
-      console.log('📨 Message from server:', data);
-      onMessage && onMessage(data);
+      console.log('📨 WS message from server:', data);
+
+      // 📡 Обработка потокового ответа
+      if (data.type === 'stream' && data.reply) {
+        onMessage && onMessage({
+          type: 'stream',
+          reply: data.reply,
+          done: !!data.done
+        });
+      }
+      // 📡 Финальное сообщение
+      else if (data.reply) {
+        onMessage && onMessage({ type: 'final', reply: data.reply });
+      }
+      // ⚠️ Ошибка
+      else if (data.error) {
+        console.error('❌ WS error:', data.error);
+        onMessage && onMessage({ type: 'error', reply: data.error });
+      }
     } catch (err) {
       console.error('⚠️ WS parse error:', err, 'Raw:', event.data);
     }
   };
 
   this.ws.onclose = () => {
-    console.log('🔌 WebSocket disconnected');
-    onClose && onClose();
+    console.warn('🔌 WebSocket disconnected');
+    if (onClose) onClose();
   };
-  this.ws.onerror = (err) => console.error('💥 WS error:', err);
+
+  this.ws.onerror = (err) => {
+    console.error('💥 WS error:', err);
+  };
 }
 
 
-  // 📨 Отправка сообщения
+   // 📨 Отправка сообщения
   sendMessage(message) {
-  if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-    this.ws.send(JSON.stringify({
-      role: 'user',
-      content: message,
-      mode: this.chatMode || 'mentor' // 🧠 добавили режим
-    }));
-  } else {
-    console.warn('⚠️ WebSocket not connected');
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        role: 'user',
+        content: message,
+        mode: this.chatMode || 'mentor'
+      }));
+    } else {
+      console.warn('⚠️ WebSocket not connected');
+    }
   }
-}
+
+  // 🧠 Отправка контекста пользователя
+  sendUserContext(context) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: 'context',
+        data: context
+      }));
+      console.log('📤 User context sent:', context);
+    } else {
+      console.warn('⚠️ WebSocket not ready for context');
+    }
+  }
 
   // 🔴 Закрыть соединение
   disconnectChat() {
     if (this.ws) this.ws.close();
   }
-}
+
 
 
 export default function App() {
@@ -307,6 +340,20 @@ export default function App() {
     </div>
   );
 }
+
+// 🧠 Отправка контекста пользователя
+sendUserContext(context) {
+  if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    this.ws.send(JSON.stringify({
+      type: 'context',
+      data: context
+    }));
+    console.log('📤 User context sent:', context);
+  } else {
+    console.warn('⚠️ WebSocket not ready for context');
+  }
+}
+
 
 function ProductsView() {
   const products = [
@@ -889,69 +936,104 @@ function FormField({ label, type, value, onChange, placeholder }) {
   );
 }
 
-function ChatView({ chatEndRef , chatMode }) {
+function ChatView({ chatEndRef, chatMode, goals, health }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [connected, setConnected] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const [emotion, setEmotion] = useState('neutral');
+
   const api = useRef(new ZamanAPI());
   api.current.chatMode = chatMode;
   const userId = 1;
+
   // 🎤 Голосовой ввод
-const [listening, setListening] = useState(false);
-const recognitionRef = useRef(null);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
 
-useEffect(() => {
-  if (!('webkitSpeechRecognition' in window)) {
-    console.warn('🎤 SpeechRecognition не поддерживается этим браузером');
-    return;
-  }
-
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const recognition = new SpeechRecognition();
-  recognition.lang = 'ru-RU';
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-
-  recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    console.log('🎧 Распознано:', transcript);
-    setInput(transcript);
-  };
-
-  recognition.onend = () => setListening(false);
-
-  recognitionRef.current = recognition;
-}, []);
-
-  const modeName = (mode) => {
-  switch (mode) {
-    case 'analyst': return 'Финансовый аналитик';
-    case 'friend': return 'Дружелюбный ассистент';
-    case 'tech': return 'Технический эксперт';
-    default: return 'Ментор по привычкам';
-  }
-};
-
-
-  // Подключение при монтировании
   useEffect(() => {
-  api.current.connectChat(
-    userId,
-    (data) => {
-      if (data.reply || data.text) {
-        const replyText = data.reply || data.text;
-        setMessages(prev => [...prev, { role: 'assistant', content: replyText }]);
-        speak(replyText); // 🗣️ ассистент говорит
-      }
-    },
-    () => setConnected(true),   // ✅ onOpen
-    () => setConnected(false)   // ✅ onClose
-  );
+    if (!('webkitSpeechRecognition' in window)) {
+      console.warn('🎤 SpeechRecognition не поддерживается этим браузером');
+      return;
+    }
 
-  return () => api.current.disconnectChat();
-}, []);
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'ru-RU';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
 
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      console.log('🎧 Распознано:', transcript);
+      setInput(transcript);
+    };
 
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+  }, []);
+
+  // ⚡ Подключение WebSocket с контекстом пользователя
+  useEffect(() => {
+    let accumulatedReply = '';
+
+    api.current.connectChat(
+      userId,
+      (data) => {
+        if (data.type === 'stream' && data.reply) {
+          setIsTyping(true);
+          accumulatedReply += data.reply;
+
+          setMessages(prev => {
+            const last = [...prev];
+            // если последнее сообщение от ассистента — обновляем
+            if (last.length && last[last.length - 1].role === 'assistant' && !data.done) {
+              last[last.length - 1].content = accumulatedReply;
+              return last;
+            } else if (!data.done) {
+              // начало потока — создаём новое сообщение
+              return [...last, { role: 'assistant', content: data.reply }];
+            } else {
+              // поток завершён — обновляем финальный текст
+              last[last.length - 1].content = accumulatedReply;
+              return last;
+            }
+          });
+
+          // если поток завершён
+          if (data.done) {
+            setIsTyping(false);
+            setTimeout(() => speak(accumulatedReply), 300);
+            accumulatedReply = '';
+          }
+        } else if (data.reply) {
+          // обычный ответ
+          setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+          speak(data.reply);
+        } else if (data.error) {
+          setMessages(prev => [...prev, { role: 'assistant', content: '❌ Ошибка: ' + data.error }]);
+          setIsTyping(false);
+        }
+      },
+      () => {
+        setConnected(true);
+        // 🚀 Отправляем контекст пользователя при подключении
+        const userContext = {
+          goals,
+          health,
+          mode: chatMode,
+          timestamp: new Date().toISOString(),
+        };
+        api.current.sendUserContext?.(userContext);
+      },
+      () => setConnected(false)
+    );
+
+    return () => api.current.disconnectChat();
+  }, [chatMode]);
+
+  // 🎙️ Отправка сообщения
   const sendMessage = () => {
     if (!input.trim()) return;
     const msg = input.trim();
@@ -963,31 +1045,51 @@ useEffect(() => {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // 🔊 Озвучка ответа
   const speak = (text) => {
-  if (!text) return;
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'ru-RU';
-if (api.current.chatMode === 'analyst') {
-  utterance.rate = 0.95;
-  utterance.pitch = 0.8;
-} else if (api.current.chatMode === 'friend') {
-  utterance.rate = 1.1;
-  utterance.pitch = 1.3;
-} else if (api.current.chatMode === 'tech') {
-  utterance.rate = 1.0;
-  utterance.pitch = 0.9;
-} else {
-  // mentor — по умолчанию
-  utterance.rate = 1;
-  utterance.pitch = 1.1;
-}
+    if (!text) return;
+    window.speechSynthesis.cancel(); // отмена старой озвучки
 
-  speechSynthesis.speak(utterance);
-  const voices = speechSynthesis.getVoices();
-utterance.voice = voices.find(v => v.lang === 'ru-RU' && v.name.includes('Google')) || voices[0];
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ru-RU';
 
-};
+    if (api.current.chatMode === 'analyst') {
+      utterance.rate = 0.95;
+      utterance.pitch = 0.8;
+    } else if (api.current.chatMode === 'friend') {
+      utterance.rate = 1.1;
+      utterance.pitch = 1.3;
+    } else if (api.current.chatMode === 'tech') {
+      utterance.rate = 1.0;
+      utterance.pitch = 0.9;
+    } else {
+      utterance.rate = 1;
+      utterance.pitch = 1.1;
+    }
 
+    const voices = speechSynthesis.getVoices();
+    utterance.voice = voices.find(v => v.lang === 'ru-RU') || voices[0];
+
+    setSpeaking(true);
+    utterance.onend = () => setSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+
+    // 🎭 Определяем "эмоцию"
+    if (text.includes('отлично') || text.includes('рад')) setEmotion('happy');
+    else if (text.includes('ошибка') || text.includes('извини')) setEmotion('sad');
+    else if (text.includes('вперёд') || text.includes('давай')) setEmotion('motivated');
+    else setEmotion('neutral');
+  };
+
+  const modeName = (mode) => {
+    switch (mode) {
+      case 'analyst': return 'Финансовый аналитик';
+      case 'friend': return 'Дружелюбный ассистент';
+      case 'tech': return 'Технический эксперт';
+      default: return 'Ментор по привычкам';
+    }
+  };
 
   return (
     <div style={{
@@ -1000,59 +1102,61 @@ utterance.voice = voices.find(v => v.lang === 'ru-RU' && v.name.includes('Google
       overflow: 'hidden'
     }}>
       {/* Header */}
-      {/* Header */}
-<div style={{
-  padding: '1rem 1.5rem',
-  background: '#f9fdfb',
-  borderBottom: '1px solid #e5e7eb',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between'
-}}>
-  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-    {/* 🧠 Аватар ассистента */}
-    <div
-  className="assistant-avatar"
-  style={{
-    width: '48px',
-    height: '48px',
-    borderRadius: '50%',
-    background:
-      chatMode === 'analyst' ? '#2563eb' :
-      chatMode === 'friend' ? '#f59e0b' :
-      chatMode === 'tech' ? '#6b7280' :
-      '#10b981',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: 'white',
-    fontSize: '24px',
-    fontWeight: 'bold',
-    boxShadow: '0 0 10px rgba(0,0,0,0.1)',
-    animation: listening
-      ? 'pulse 1s infinite'
-      : 'blink 4s infinite',
-    transition: 'transform 0.3s ease, box-shadow 0.3s ease'
-  }}
->
-  {chatMode === 'analyst' ? '💼' :
-   chatMode === 'friend' ? '💬' :
-   chatMode === 'tech' ? '🤖' :
-   '🧘'}
-</div>
+      <div style={{
+        padding: '1rem 1.5rem',
+        background: '#f9fdfb',
+        borderBottom: '1px solid #e5e7eb',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div
+            style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              background:
+                emotion === 'happy'
+                  ? 'linear-gradient(135deg, #22c55e, #86efac)'
+                  : emotion === 'sad'
+                  ? 'linear-gradient(135deg, #3b82f6, #93c5fd)'
+                  : emotion === 'motivated'
+                  ? 'linear-gradient(135deg, #f59e0b, #fde68a)'
+                  : 'linear-gradient(135deg, #14b8a6, #99f6e4)',
+              boxShadow: speaking
+                ? '0 0 25px rgba(20,184,166,0.6)'
+                : listening
+                ? '0 0 20px rgba(245,158,11,0.6)'
+                : '0 0 10px rgba(0,0,0,0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '30px',
+              fontWeight: 'bold',
+              transition: 'all 0.4s ease'
+            }}
+          >
+            {chatMode === 'analyst'
+              ? '💼'
+              : chatMode === 'friend'
+              ? '💬'
+              : chatMode === 'tech'
+              ? '🤖'
+              : '🧘'}
+          </div>
 
-
-    <div>
-      <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#111827', margin: 0 }}>
-        Zaman Assistant
-      </h3>
-      <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>
-        {connected ? '🟢 Онлайн' : '🔴 Оффлайн'} — {modeName(chatMode)}
-      </p>
-    </div>
-  </div>
-</div>
-
+          <div>
+            <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#111827', margin: 0 }}>
+              Zaman Assistant
+            </h3>
+            <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>
+              {connected ? '🟢 Онлайн' : '🔴 Оффлайн'} — {modeName(chatMode)}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Messages */}
       <div style={{
@@ -1071,13 +1175,30 @@ utterance.voice = voices.find(v => v.lang === 'ru-RU' && v.name.includes('Google
             padding: '0.8rem 1rem',
             borderRadius: '10px',
             maxWidth: '70%',
-            fontSize: '14px'
+            fontSize: '14px',
+            lineHeight: 1.4
           }}>
             {msg.content}
           </div>
         ))}
         <div ref={chatEndRef} />
       </div>
+
+      {/* Индикатор активности ассистента */}
+      {(isTyping || speaking) && (
+        <div
+          style={{
+            textAlign: 'center',
+            fontSize: '13px',
+            color: speaking ? '#10b981' : '#6b7280',
+            marginBottom: '0.5rem',
+            fontStyle: 'italic',
+            transition: 'color 0.3s ease'
+          }}
+        >
+          {speaking ? 'Ассистент говорит...' : 'Ассистент печатает...'}
+        </div>
+      )}
 
       {/* Input */}
       <div style={{
@@ -1087,67 +1208,64 @@ utterance.voice = voices.find(v => v.lang === 'ru-RU' && v.name.includes('Google
         gap: '0.5rem'
       }}>
         <input
-  type="text"
-  value={input}
-  onChange={(e) => setInput(e.target.value)}
-  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-  placeholder="Введите сообщение..."
-  style={{
-    flex: 1,
-    padding: '0.8rem',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    fontSize: '14px',
-    color: '#111827', // 🔹 текст видимый (тёмно-серый)
-    background: '#ffffff' // 🔹 белый фон под текстом
-  }}
-/>
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+          placeholder="Введите сообщение..."
+          style={{
+            flex: 1,
+            padding: '0.8rem',
+            border: '1px solid #d1d5db',
+            borderRadius: '8px',
+            fontSize: '14px',
+            color: '#111827',
+            background: '#ffffff'
+          }}
+        />
 
+        {/* 🎤 Голосовой ввод */}
+        <button
+          onClick={() => {
+            if (!recognitionRef.current) return;
+            if (listening) {
+              recognitionRef.current.stop();
+              setListening(false);
+            } else {
+              recognitionRef.current.start();
+              setListening(true);
+            }
+          }}
+          style={{
+            padding: '0.8rem',
+            background: listening ? '#ef4444' : '#f0f9f7',
+            color: listening ? 'white' : '#2D9A86',
+            border: '1px solid #d1e5e0',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            fontSize: '16px'
+          }}
+          title="Нажми, чтобы говорить"
+        >
+          {listening ? '🛑' : '🎙️'}
+        </button>
 
-{/* 🎤 Кнопка голосового ввода */}
-<button
-  onClick={() => {
-    if (!recognitionRef.current) return;
-    if (listening) {
-      recognitionRef.current.stop();
-      setListening(false);
-    } else {
-      recognitionRef.current.start();
-      setListening(true);
-    }
-  }}
-  style={{
-    padding: '0.8rem',
-    background: listening ? '#ef4444' : '#f0f9f7',
-    color: listening ? 'white' : '#2D9A86',
-    border: '1px solid #d1e5e0',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-    fontSize: '16px'
-  }}
-  title="Нажми, чтобы говорить"
->
-  {listening ? '🛑' : '🎙️'}
-</button>
-
-<button
-  onClick={sendMessage}
-  disabled={!connected || !input.trim()}
-  style={{
-    padding: '0.8rem 1.2rem',
-    background: connected ? '#2D9A86' : '#9ca3af',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: connected ? 'pointer' : 'not-allowed'
-  }}
->
-  ➤
-</button>
-
+        <button
+          onClick={sendMessage}
+          disabled={!connected || !input.trim()}
+          style={{
+            padding: '0.8rem 1.2rem',
+            background: connected ? '#2D9A86' : '#9ca3af',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: connected ? 'pointer' : 'not-allowed'
+          }}
+        >
+          ➤
+        </button>
       </div>
     </div>
   );
 }
- 
