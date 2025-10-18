@@ -1,0 +1,83 @@
+# ===== MAKEFILE FOR WINDOWS =====
+# Использование: make -f Makefile.windows <command>
+# Или переименовать в Makefile
+
+.PHONY: help build up down logs restart clean test shell
+
+# Цвета (если терминал поддерживает)
+RED := \033[0;31m
+GREEN := \033[0;32m
+YELLOW := \033[1;33m
+NC := \033[0m
+
+help: ## Показать справку
+	@echo "===== Zaman Assistant - Docker Commands ====="
+	@echo ""
+	@echo "Доступные команды:"
+	@echo "  make build      - Сборка Docker образов"
+	@echo "  make up         - Запуск сервисов"
+	@echo "  make down       - Остановка сервисов"
+	@echo "  make logs       - Просмотр логов"
+	@echo "  make restart    - Перезапуск"
+	@echo "  make clean      - Полная очистка"
+	@echo "  make test       - Запуск тестов"
+	@echo "  make shell      - Shell в контейнере"
+	@echo ""
+
+build: ## Сборка образов
+	@echo "Building Docker images..."
+	docker-compose -f infra/docker-compose.yml build
+
+up: ## Запуск всех сервисов
+	@echo "Starting services..."
+	docker-compose -f infra/docker-compose.yml up -d
+	@echo "Waiting for services to be healthy..."
+	timeout /t 15 /nobreak
+	@echo "Services started! API: http://localhost:8000"
+
+down: ## Остановка сервисов
+	@echo "Stopping services..."
+	docker-compose -f infra/docker-compose.yml down
+
+logs: ## Логи backend
+	docker-compose -f infra/docker-compose.yml logs -f backend
+
+logs-all: ## Все логи
+	docker-compose -f infra/docker-compose.yml logs -f
+
+restart: down up ## Перезапуск
+
+clean: ## Полная очистка (УДАЛИТ ДАННЫЕ!)
+	@echo "WARNING: This will delete all data!"
+	@echo "Press Ctrl+C to cancel..."
+	timeout /t 5
+	docker-compose -f infra/docker-compose.yml down -v
+	docker system prune -f
+
+status: ## Статус контейнеров
+	docker-compose -f infra/docker-compose.yml ps
+
+test: ## Запуск тестов
+	docker-compose -f infra/docker-compose.test.yml up --abort-on-container-exit
+	docker-compose -f infra/docker-compose.test.yml down
+
+shell: ## Shell в backend контейнере
+	docker-compose -f infra/docker-compose.yml exec backend /bin/bash
+
+db-shell: ## PostgreSQL shell
+	docker-compose -f infra/docker-compose.yml exec postgres psql -U zaman -d zaman_db
+
+health: ## Проверка health
+	curl http://localhost:8000/health
+
+backup: ## Backup базы данных
+	@echo "Creating backup..."
+	docker-compose -f infra/docker-compose.yml exec -T postgres pg_dump -U zaman zaman_db > backup_$(date +%Y%m%d_%H%M%S).sql
+	@echo "Backup created!"
+
+# Профили
+up-full: ## Запуск с Redis
+	docker-compose -f infra/docker-compose.yml --profile full up -d
+
+up-prod: ## Запуск с Nginx (production)
+	docker-compose -f infra/docker-compose.yml --profile production up -d

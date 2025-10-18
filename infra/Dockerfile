@@ -1,39 +1,34 @@
 # ===== MULTI-STAGE DOCKER BUILD FOR ZAMAN ASSISTANT =====
+# Windows-совместимая версия
 
 # ===== STAGE 1: Builder =====
 FROM python:3.11-slim as builder
 
-# Метаданные
 LABEL maintainer="Zaman Bank AI Team <ai-team@zamanbank.kz>"
-LABEL description="Zaman Assistant - AI-powered Financial Assistant"
 LABEL version="3.0.0"
 
-# Рабочая директория
 WORKDIR /build
 
-# Установка системных зависимостей для компиляции
+# Установка системных зависимостей
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     python3-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Копирование requirements.txt
+# Копирование requirements
 COPY requirements.txt .
 
-# Установка Python зависимостей в виртуальное окружение
+# Установка Python зависимостей в venv
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
-
-# Установка зависимостей
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
-
 
 # ===== STAGE 2: Runtime =====
 FROM python:3.11-slim
 
-# Метаданные
 LABEL maintainer="Zaman Bank AI Team <ai-team@zamanbank.kz>"
 LABEL version="3.0.0"
 
@@ -41,39 +36,36 @@ LABEL version="3.0.0"
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH" \
+    PYTHONPATH=/app \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 
-# Создание пользователя для безопасности
-RUN groupadd -r zaman && \
-    useradd -r -g zaman -s /bin/bash -d /app zaman
+# Установка curl для healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Рабочая директория
 WORKDIR /app
 
-# Копирование виртуального окружения из builder
+# Копирование venv из builder
 COPY --from=builder /opt/venv /opt/venv
 
-# Копирование кода приложения
+# Копирование кода
 COPY backend/ ./backend/
 COPY requirements.txt .
 
-# Создание необходимых директорий
-RUN mkdir -p /app/data /app/logs && \
-    chown -R zaman:zaman /app
-
-# Переключение на непривилегированного пользователя
-USER zaman
+# Создание директорий
+RUN mkdir -p /app/data /app/logs
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import httpx; httpx.get('http://localhost:8000/health', timeout=5)" || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
 
-# Expose порт
+# Expose
 EXPOSE 8000
 
-# Инициализация БД при первом запуске
+# Инициализация БД (опционально)
 RUN cd backend && python database.py || true
 
-# Запуск приложения
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# ✅ ИСПРАВЛЕНО: правильный путь к модулю
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

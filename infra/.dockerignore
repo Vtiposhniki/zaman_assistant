@@ -1,0 +1,108 @@
+# ===== ZAMAN ASSISTANT .dockerignore =====
+# Файлы и директории, исключаемые из Docker build context
+
+# ===== Git =====
+.git/
+.gitignore
+.gitattributes
+*.md
+!README.md
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ===== Virtual Environments =====
+venv/
+.venv/
+env/
+ENV/
+.virtualenv/
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ===== Database =====
+*.db
+*.sqlite
+*.sqlite3
+
+# ===== Environment =====
+.env
+.env.*
+!.env.example
+*.env
+
+# ===== Logs =====
+*.log
+logs/
+*.out
+
+# ===== Testing =====
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+*.coverage.*
+
+# ===== Jupyter =====
+.ipynb_checkpoints/
+*.ipynb
+
+# ===== Data Files (большие файлы) =====
+data/product_embeddings.pkl
+data/*.pkl
+data/*.npy
+*.csv
+*.xlsx
+
+# ===== Temporary =====
+tmp/
+temp/
+*.tmp
+.cache/
+
+# ===== Docker =====
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile
+.dockerignore
+
+# ===== Documentation =====
+docs/
+*.pdf
+*.docx
+
+# ===== OS Specific =====
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ===== Backup =====
+*.bak
+*.backup
+backup_*
+
+# ===== Node (если используется frontend) =====
+node_modules/
+package-lock.json
+yarn.lock
+
+# ===== Misc =====
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.pyc
