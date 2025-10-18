@@ -59,7 +59,7 @@ copy .env.example .env  # Windows
 python database.py
 
 # 6. Запуск
-python main.py
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 Сервер запустится на `http://localhost:8000`
