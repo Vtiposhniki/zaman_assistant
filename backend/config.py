@@ -1,57 +1,55 @@
-# config.py — Централизованная конфигурация
+# config.py — Централизованная конфигурация (FIXED)
 """
 Все настройки приложения в одном месте.
-Использует Pydantic Settings для валидации.
+Упрощённая версия без pydantic_settings.
 """
 import os
 import json
 from pathlib import Path
-from typing import Optional
-from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
 load_dotenv()
 
-class Settings(BaseSettings):
-    """Настройки приложения с валидацией"""
+
+# ===== НАСТРОЙКИ =====
+class Settings:
+    """Настройки приложения"""
     
     # API Keys
-    OPENAI_HUB_KEY: str = ""
-    OPENAI_HUB_URL: str = "https://openai-hub.neuraldeep.tech"
+    OPENAI_HUB_KEY: str = os.getenv("OPENAI_HUB_KEY", "")
+    OPENAI_HUB_URL: str = os.getenv("OPENAI_HUB_URL", "https://openai-hub.neuraldeep.tech")
     
     # Database
-    DATABASE_URL: str = "sqlite:///./zaman_assistant.db"
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./zaman_assistant.db")
     
     # Security
-    ADMIN_TOKEN: str = ""
+    ADMIN_TOKEN: str = os.getenv("ADMIN_TOKEN", "")
     
     # Features
-    MOCK_MODE: bool = True
-    DEBUG: bool = False
+    MOCK_MODE: bool = os.getenv("MOCK_MODE", "true").lower() in ("1", "true", "yes")
+    DEBUG: bool = os.getenv("DEBUG", "false").lower() in ("1", "true", "yes")
     
     # Embeddings
-    EMBEDDINGS_PATH: str = "./data/product_embeddings.pkl"
-    EMBED_DIM: int = 1536
+    EMBEDDINGS_PATH: str = os.getenv("EMBEDDINGS_PATH", "./data/product_embeddings.pkl")
+    EMBED_DIM: int = int(os.getenv("EMBED_DIM", "1536"))
     
     # Cache
-    CACHE_TTL_SECONDS: int = 3600
+    CACHE_TTL_SECONDS: int = int(os.getenv("CACHE_TTL_SECONDS", "3600"))
     
     # Rate Limiting
-    RATE_LIMIT_MAX_REQUESTS: int = 200
-    RATE_LIMIT_WINDOW_SECONDS: int = 3600
+    RATE_LIMIT_MAX_REQUESTS: int = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "200"))
+    RATE_LIMIT_WINDOW_SECONDS: int = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "3600"))
     
     # WebSocket
     WS_MESSAGE_MAX_SIZE: int = 1024 * 1024  # 1MB
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+
 
 # Singleton settings instance
 settings = Settings()
 
+
 # ===== ЗАГРУЗКА ПРОДУКТОВ =====
-def load_products() -> list[dict]:
+def load_products() -> list:
     """Загрузка продуктов из JSON"""
     products_path = Path(__file__).parent / "products.json"
     
@@ -68,7 +66,9 @@ def load_products() -> list[dict]:
         print(f"❌ Failed to load products: {e}")
         return []
 
+
 PRODUCTS = load_products()
+
 
 # ===== FAQ RESPONSES =====
 FAQ_RESPONSES = {
@@ -80,6 +80,7 @@ FAQ_RESPONSES = {
     "что такое исламский кредит": "Это кредит по исламским принципам (без явных процентов). Вместо интереса — наценка на сумму покупки.",
     "как зарегистрировать бизнес карту": "Требуется минимум документов, кэшбэк до 1%, лимит 10млн KZT/день. Оставьте заявку онлайн."
 }
+
 
 # ===== ВАЛИДАЦИЯ КОНФИГУРАЦИИ =====
 def validate_config():
@@ -95,10 +96,22 @@ def validate_config():
     if not PRODUCTS:
         warnings.append("⚠️ No products loaded. Recommendations will not work.")
     
+    # Info сообщения
+    print(f"🔧 Configuration:")
+    print(f"   - MOCK_MODE: {settings.MOCK_MODE}")
+    print(f"   - DEBUG: {settings.DEBUG}")
+    print(f"   - Database: {settings.DATABASE_URL}")
+    print(f"   - Products: {len(PRODUCTS)}")
+    print(f"   - Cache TTL: {settings.CACHE_TTL_SECONDS}s")
+    print(f"   - Rate Limit: {settings.RATE_LIMIT_MAX_REQUESTS}/{settings.RATE_LIMIT_WINDOW_SECONDS}s")
+    
     if warnings:
+        print("\n⚠️ WARNINGS:")
         for w in warnings:
-            print(w)
+            print(f"   {w}")
     else:
-        print("✅ Configuration validated successfully")
+        print("\n✅ Configuration validated successfully")
 
+
+# Автоматическая валидация при импорте
 validate_config()
