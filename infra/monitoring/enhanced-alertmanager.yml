@@ -1,0 +1,364 @@
+# ===== ENHANCED ALERTMANAGER CONFIGURATION =====
+# Production-ready alerting with multiple channels and escalation
+
+global:
+  resolve_timeout: 5m
+  slack_api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'alerts@zamanbank.kz'
+  smtp_auth_username: 'alerts@zamanbank.kz'
+  smtp_auth_password: 'your-smtp-password'
+
+# Templates
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Routing tree
+route:
+  group_by: ['alertname', 'cluster', 'service', 'severity']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default-receiver'
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 0s
+      group_interval: 5m
+      repeat_interval: 1h
+      continue: true
+    
+    # Warning alerts - delayed notification
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 30s
+      group_interval: 15m
+      repeat_interval: 6h
+    
+    # Info alerts - daily summary
+    - match:
+        severity: info
+      receiver: 'info-alerts'
+      group_wait: 1m
+      group_interval: 1h
+      repeat_interval: 24h
+    
+    # Database alerts
+    - match:
+        service: postgres
+      receiver: 'database-alerts'
+      group_wait: 30s
+      group_interval: 15m
+      repeat_interval: 2h
+    
+    # Redis alerts
+    - match:
+        service: redis
+      receiver: 'cache-alerts'
+      group_wait: 30s
+      group_interval: 15m
+      repeat_interval: 2h
+    
+    # Backend alerts
+    - match:
+        service: zaman-backend
+      receiver: 'backend-alerts'
+      group_wait: 30s
+      group_interval: 15m
+      repeat_interval: 2h
+    
+    # Infrastructure alerts
+    - match:
+        service: nginx
+      receiver: 'infrastructure-alerts'
+      group_wait: 30s
+      group_interval: 15m
+      repeat_interval: 2h
+
+# Inhibition rules
+inhibit_rules:
+  # Inhibit warning alerts when critical alerts are firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'cluster', 'service']
+  
+  # Inhibit info alerts when warning or critical alerts are firing
+  - source_match:
+      severity: 'warning'
+    target_match:
+      severity: 'info'
+    equal: ['alertname', 'cluster', 'service']
+  
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'info'
+    equal: ['alertname', 'cluster', 'service']
+
+# Receivers
+receivers:
+  # Default receiver for unmatched alerts
+  - name: 'default-receiver'
+    slack_configs:
+      - channel: '#zaman-alerts'
+        title: '🚨 Zaman Assistant Alert'
+        text: |
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Severity:* {{ .CommonLabels.severity }}
+          *Service:* {{ .CommonLabels.service }}
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Description:* {{ .CommonAnnotations.description }}
+          *Firing Alerts:* {{ len .Alerts }}
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+        actions:
+          - type: button
+            text: 'View in Grafana'
+            url: 'https://grafana.zamanbank.kz/d/alerts'
+          - type: button
+            text: 'View in Prometheus'
+            url: 'https://prometheus.zamanbank.kz/alerts'
+
+  # Critical alerts - immediate notification
+  - name: 'critical-alerts'
+    slack_configs:
+      - channel: '#zaman-critical'
+        title: '🚨 CRITICAL: Zaman Assistant Alert'
+        text: |
+          *CRITICAL ALERT*
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Service:* {{ .CommonLabels.service }}
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Description:* {{ .CommonAnnotations.description }}
+          *Firing Alerts:* {{ len .Alerts }}
+        send_resolved: true
+        color: 'danger'
+        actions:
+          - type: button
+            text: 'View in Grafana'
+            url: 'https://grafana.zamanbank.kz/d/alerts'
+          - type: button
+            text: 'View in Prometheus'
+            url: 'https://prometheus.zamanbank.kz/alerts'
+    
+    email_configs:
+      - to: 'oncall@zamanbank.kz'
+        subject: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        body: |
+          Critical alert for Zaman Assistant:
+          
+          Alert: {{ .GroupLabels.alertname }}
+          Service: {{ .CommonLabels.service }}
+          Severity: {{ .CommonLabels.severity }}
+          Summary: {{ .CommonAnnotations.summary }}
+          Description: {{ .CommonAnnotations.description }}
+          
+          Firing Alerts: {{ len .Alerts }}
+          
+          Please investigate immediately.
+    
+    pagerduty_configs:
+      - service_key: 'YOUR_PAGERDUTY_KEY'
+        description: '{{ .CommonAnnotations.summary }}'
+        details:
+          alertname: '{{ .GroupLabels.alertname }}'
+          service: '{{ .CommonLabels.service }}'
+          severity: '{{ .CommonLabels.severity }}'
+
+  # Warning alerts
+  - name: 'warning-alerts'
+    slack_configs:
+      - channel: '#zaman-alerts'
+        title: '⚠️ WARNING: Zaman Assistant Alert'
+        text: |
+          *WARNING ALERT*
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Service:* {{ .CommonLabels.service }}
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Description:* {{ .CommonAnnotations.description }}
+          *Firing Alerts:* {{ len .Alerts }}
+        send_resolved: true
+        color: 'warning'
+        actions:
+          - type: button
+            text: 'View in Grafana'
+            url: 'https://grafana.zamanbank.kz/d/alerts'
+    
+    email_configs:
+      - to: 'team@zamanbank.kz'
+        subject: '⚠️ WARNING: {{ .GroupLabels.alertname }}'
+        body: |
+          Warning alert for Zaman Assistant:
+          
+          Alert: {{ .GroupLabels.alertname }}
+          Service: {{ .CommonLabels.service }}
+          Severity: {{ .CommonLabels.severity }}
+          Summary: {{ .CommonAnnotations.summary }}
+          Description: {{ .CommonAnnotations.description }}
+          
+          Firing Alerts: {{ len .Alerts }}
+
+  # Info alerts
+  - name: 'info-alerts'
+    slack_configs:
+      - channel: '#zaman-info'
+        title: 'ℹ️ INFO: Zaman Assistant Alert'
+        text: |
+          *INFO ALERT*
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Service:* {{ .CommonLabels.service }}
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Description:* {{ .CommonAnnotations.description }}
+          *Firing Alerts:* {{ len .Alerts }}
+        send_resolved: true
+        color: 'good'
+        actions:
+          - type: button
+            text: 'View in Grafana'
+            url: 'https://grafana.zamanbank.kz/d/alerts'
+
+  # Database alerts
+  - name: 'database-alerts'
+    slack_configs:
+      - channel: '#zaman-database'
+        title: '🗄️ Database Alert'
+        text: |
+          *DATABASE ALERT*
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Service:* {{ .CommonLabels.service }}
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Description:* {{ .CommonAnnotations.description }}
+          *Firing Alerts:* {{ len .Alerts }}
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+        actions:
+          - type: button
+            text: 'View Database Metrics'
+            url: 'https://grafana.zamanbank.kz/d/database'
+    
+    email_configs:
+      - to: 'dba@zamanbank.kz'
+        subject: '🗄️ Database Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          Database alert for Zaman Assistant:
+          
+          Alert: {{ .GroupLabels.alertname }}
+          Service: {{ .CommonLabels.service }}
+          Severity: {{ .CommonLabels.severity }}
+          Summary: {{ .CommonAnnotations.summary }}
+          Description: {{ .CommonAnnotations.description }}
+          
+          Firing Alerts: {{ len .Alerts }}
+
+  # Cache alerts
+  - name: 'cache-alerts'
+    slack_configs:
+      - channel: '#zaman-cache'
+        title: '💾 Cache Alert'
+        text: |
+          *CACHE ALERT*
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Service:* {{ .CommonLabels.service }}
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Description:* {{ .CommonAnnotations.description }}
+          *Firing Alerts:* {{ len .Alerts }}
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
+        actions:
+          - type: button
+            text: 'View Cache Metrics'
+            url: 'https://grafana.zamanbank.kz/d/cache'
+
+  # Backend alerts
+  - name: 'backend-alerts'
+    slack_configs:
+      - channel: '#zaman-backend'
+        title: '🚀 Backend Alert'
+        text: |
+          *BACKEND ALERT*
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Service:* {{ .CommonLabels.service }}
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Description:* {{ .CommonAnnotations.description }}
+          *Firing Alerts:* {{ len .Alerts }}
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+        actions:
+          - type: button
+            text: 'View Backend Metrics'
+            url: 'https://grafana.zamanbank.kz/d/backend'
+          - type: button
+            text: 'View Logs'
+            url: 'https://logs.zamanbank.kz'
+    
+    email_configs:
+      - to: 'backend-team@zamanbank.kz'
+        subject: '🚀 Backend Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          Backend alert for Zaman Assistant:
+          
+          Alert: {{ .GroupLabels.alertname }}
+          Service: {{ .CommonLabels.service }}
+          Severity: {{ .CommonLabels.severity }}
+          Summary: {{ .CommonAnnotations.summary }}
+          Description: {{ .CommonAnnotations.description }}
+          
+          Firing Alerts: {{ len .Alerts }}
+
+  # Infrastructure alerts
+  - name: 'infrastructure-alerts'
+    slack_configs:
+      - channel: '#zaman-infrastructure'
+        title: '🏗️ Infrastructure Alert'
+        text: |
+          *INFRASTRUCTURE ALERT*
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Service:* {{ .CommonLabels.service }}
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Description:* {{ .CommonAnnotations.description }}
+          *Firing Alerts:* {{ len .Alerts }}
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
+        actions:
+          - type: button
+            text: 'View Infrastructure Metrics'
+            url: 'https://grafana.zamanbank.kz/d/infrastructure'
+    
+    email_configs:
+      - to: 'infrastructure@zamanbank.kz'
+        subject: '🏗️ Infrastructure Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          Infrastructure alert for Zaman Assistant:
+          
+          Alert: {{ .GroupLabels.alertname }}
+          Service: {{ .CommonLabels.service }}
+          Severity: {{ .CommonLabels.severity }}
+          Summary: {{ .CommonAnnotations.summary }}
+          Description: {{ .CommonAnnotations.description }}
+          
+          Firing Alerts: {{ len .Alerts }}
+
+# Time intervals
+time_intervals:
+  - name: 'business-hours'
+    time_intervals:
+      - times:
+          - start_time: '09:00'
+            end_time: '17:00'
+        weekdays: ['monday:friday']
+  
+  - name: 'weekends'
+    time_intervals:
+      - weekdays: ['saturday', 'sunday']
+  
+  - name: 'maintenance-window'
+    time_intervals:
+      - times:
+          - start_time: '02:00'
+            end_time: '04:00'
+        weekdays: ['sunday']

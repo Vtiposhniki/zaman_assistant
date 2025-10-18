@@ -1,0 +1,403 @@
+# ===== ENHANCED DOCKER COMPOSE CONFIGURATION =====
+# Production-ready setup with monitoring, security, and performance optimizations
+
+version: '3.8'
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-restart-policy: &restart-policy
+  restart: unless-stopped
+
+services:
+  # ===== BACKEND APPLICATION =====
+  backend:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.optimized
+      target: production
+    container_name: zaman-backend
+    <<: *restart-policy
+    <<: *default-logging
+    
+    environment:
+      - DATABASE_URL=postgresql://zaman:${DB_PASSWORD}@postgres:5432/zaman_db
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - MOCK_MODE=false
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      - WORKERS=4
+      - CACHE_TTL_SECONDS=3600
+      - RATE_LIMIT_MAX_REQUESTS=200
+      - RATE_LIMIT_WINDOW_SECONDS=3600
+    
+    volumes:
+      - backend-data:/app/data
+      - backend-logs:/app/logs
+      - backend-tmp:/app/tmp
+    
+    ports:
+      - "8000:8000"
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    networks:
+      - zaman-network
+    
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '1.0'
+
+  # ===== POSTGRESQL DATABASE =====
+  postgres:
+    image: postgres:16-alpine
+    container_name: zaman-postgres
+    <<: *restart-policy
+    <<: *default-logging
+    
+    environment:
+      - POSTGRES_DB=zaman_db
+      - POSTGRES_USER=zaman
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    
+    ports:
+      - "5432:5432"
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zaman -d zaman_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    
+    networks:
+      - zaman-network
+    
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # ===== REDIS CACHE =====
+  redis:
+    image: redis:7-alpine
+    container_name: zaman-redis
+    <<: *restart-policy
+    <<: *default-logging
+    
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD}
+      --tcp-keepalive 60
+      --timeout 300
+    
+    volumes:
+      - redis-data:/data
+    
+    ports:
+      - "6379:6379"
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    
+    networks:
+      - zaman-network
+    
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # ===== NGINX REVERSE PROXY =====
+  nginx:
+    image: nginx:alpine
+    container_name: zaman-nginx
+    <<: *restart-policy
+    <<: *default-logging
+    
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - nginx-logs:/var/log/nginx
+    
+    ports:
+      - "80:80"
+      - "443:443"
+    
+    depends_on:
+      - backend
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    networks:
+      - zaman-network
+    
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+
+  # ===== PROMETHEUS MONITORING =====
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: zaman-prometheus
+    <<: *restart-policy
+    <<: *default-logging
+    
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts:/etc/prometheus/alerts:ro
+      - prometheus-data:/prometheus
+    
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    
+    ports:
+      - "9090:9090"
+    
+    networks:
+      - zaman-network
+    
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # ===== GRAFANA DASHBOARDS =====
+  grafana:
+    image: grafana/grafana:latest
+    container_name: zaman-grafana
+    <<: *restart-policy
+    <<: *default-logging
+    
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=https://grafana.zamanbank.kz
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    
+    ports:
+      - "3000:3000"
+    
+    depends_on:
+      - prometheus
+    
+    networks:
+      - zaman-network
+    
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # ===== ALERTMANAGER =====
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: zaman-alertmanager
+    <<: *restart-policy
+    <<: *default-logging
+    
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=https://alerts.zamanbank.kz'
+    
+    ports:
+      - "9093:9093"
+    
+    networks:
+      - zaman-network
+    
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+
+  # ===== POSTGRES EXPORTER =====
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: zaman-postgres-exporter
+    <<: *restart-policy
+    <<: *default-logging
+    
+    environment:
+      - DATA_SOURCE_NAME=postgresql://zaman:${DB_PASSWORD}@postgres:5432/zaman_db?sslmode=disable
+    
+    ports:
+      - "9187:9187"
+    
+    depends_on:
+      - postgres
+    
+    networks:
+      - zaman-network
+    
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.1'
+        reservations:
+          memory: 64M
+          cpus: '0.05'
+
+  # ===== REDIS EXPORTER =====
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: zaman-redis-exporter
+    <<: *restart-policy
+    <<: *default-logging
+    
+    environment:
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    
+    ports:
+      - "9121:9121"
+    
+    depends_on:
+      - redis
+    
+    networks:
+      - zaman-network
+    
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.1'
+        reservations:
+          memory: 64M
+          cpus: '0.05'
+
+  # ===== NODE EXPORTER =====
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: zaman-node-exporter
+    <<: *restart-policy
+    <<: *default-logging
+    
+    command:
+      - '--path.rootfs=/host'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    
+    volumes:
+      - /:/host:ro,rslave
+    
+    ports:
+      - "9100:9100"
+    
+    networks:
+      - zaman-network
+    
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.1'
+        reservations:
+          memory: 64M
+          cpus: '0.05'
+
+# ===== PERSISTENT VOLUMES =====
+volumes:
+  backend-data:
+    driver: local
+  backend-logs:
+    driver: local
+  backend-tmp:
+    driver: local
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  nginx-logs:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  alertmanager-data:
+    driver: local
+
+# ===== NETWORKS =====
+networks:
+  zaman-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

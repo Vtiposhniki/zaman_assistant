@@ -1,0 +1,256 @@
+# ===== ENHANCED PROMETHEUS CONFIGURATION =====
+# Production-ready monitoring with comprehensive metrics collection
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'zaman-production'
+    environment: 'production'
+    region: 'eu-central-1'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+      timeout: 10s
+      api_version: v2
+
+# Load rules
+rule_files:
+  - "alerts/*.yml"
+  - "rules/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Backend FastAPI metrics
+  - job_name: 'zaman-backend'
+    static_configs:
+      - targets: ['backend:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    honor_labels: true
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'zaman-backend'
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'zaman-backend'
+
+  # PostgreSQL exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'zaman-postgres'
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'zaman-postgres'
+
+  # Redis exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'zaman-redis'
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'zaman-redis'
+
+  # Node exporter (system metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'zaman-node'
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'zaman-node'
+
+  # Nginx metrics
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx:9113']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'zaman-nginx'
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'zaman-nginx'
+
+  # ECS Task metadata (AWS)
+  - job_name: 'ecs-tasks'
+    ec2_sd_configs:
+      - region: eu-central-1
+        port: 8000
+    relabel_configs:
+      - source_labels: [__meta_ecs_task_name]
+        target_label: task_name
+      - source_labels: [__meta_ecs_cluster_name]
+        target_label: cluster_name
+      - source_labels: [__meta_ecs_service_name]
+        target_label: service_name
+
+  # Kubernetes metrics (if using K8s)
+  - job_name: 'kubernetes-pods'
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - zaman-assistant
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: kubernetes_namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: kubernetes_pod_name
+
+  # Kubernetes nodes
+  - job_name: 'kubernetes-nodes'
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/${1}/proxy/metrics
+
+  # Kubernetes services
+  - job_name: 'kubernetes-services'
+    kubernetes_sd_configs:
+      - role: service
+        namespaces:
+          names:
+            - zaman-assistant
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+        action: replace
+        target_label: __scheme__
+        regex: (https?)
+      - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_service_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: kubernetes_namespace
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: kubernetes_name
+
+# Storage configuration
+storage:
+  tsdb:
+    retention.time: 30d
+    retention.size: 10GB
+    wal-compression: true
+
+# Remote write configuration (optional)
+# remote_write:
+#   - url: "https://prometheus-remote-write-endpoint"
+#     basic_auth:
+#       username: "username"
+#       password: "password"
+#     write_relabel_configs:
+#       - source_labels: [__name__]
+#         regex: 'up|prometheus_.*'
+#         action: keep
+
+# Remote read configuration (optional)
+# remote_read:
+#   - url: "https://prometheus-remote-read-endpoint"
+#     basic_auth:
+#       username: "username"
+#       password: "password"
+
+# Recording rules
+recording_rules:
+  - name: "zaman_backend.rules"
+    rules:
+      - record: zaman_backend:request_rate
+        expr: rate(http_requests_total{job="zaman-backend"}[5m])
+      
+      - record: zaman_backend:error_rate
+        expr: rate(http_requests_total{job="zaman-backend",status=~"5.."}[5m])
+      
+      - record: zaman_backend:response_time_p95
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="zaman-backend"}[5m]))
+      
+      - record: zaman_backend:response_time_p99
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job="zaman-backend"}[5m]))
+      
+      - record: zaman_backend:active_connections
+        expr: sum(up{job="zaman-backend"})
+      
+      - record: zaman_backend:cpu_usage
+        expr: rate(container_cpu_usage_seconds_total{container="backend"}[5m])
+      
+      - record: zaman_backend:memory_usage
+        expr: container_memory_usage_bytes{container="backend"}
+      
+      - record: zaman_backend:memory_limit
+        expr: container_spec_memory_limit_bytes{container="backend"}
+      
+      - record: zaman_backend:memory_utilization
+        expr: container_memory_usage_bytes{container="backend"} / container_spec_memory_limit_bytes{container="backend"}
+
+# Federation configuration (optional)
+# federation:
+#   - job_name: 'federate'
+#     scrape_interval: 15s
+#     honor_labels: true
+#     metrics_path: '/federate'
+#     params:
+#       'match[]':
+#         - '{job=~"zaman-.*"}'
+#     static_configs:
+#       - targets:
+#         - 'prometheus:9090'
