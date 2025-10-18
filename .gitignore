@@ -1,21 +1,52 @@
-# ===== ZAMAN ASSISTANT .gitignore =====
+# =============================
+# 🐍 Python / FastAPI / Zaman Assistant
+# =============================
 
-# Environment variables (ВАЖНО!)
-.env
-.env.local
-.env.*.local
-*.env
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# C extensions
 *.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+*.env
+.env.local
+.env.*
+
+# SQLite database
+*.db
+*.sqlite3
+
+# Logs and debug output
+*.log
+logs/
+*.pid
+
+# Jupyter / IPython
+.ipynb_checkpoints
+*.ipynb
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -29,58 +60,66 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
-*.manifest
-*.spec
 
-# Virtual environments
-.venv/
-venv/
-ENV/
-env/
-.virtualenv
-
-# IDEs
+# VSCode / JetBrains IDEs
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
+*.iml
+
+# Node / React frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist/
+build/
+
+# Local frontend dev
+frontend/.env
+frontend/.DS_Store
+
+# OS files
 .DS_Store
-
-# Logs
-*.log
-logs/
-*.out
-
-# Embeddings data
-data/product_embeddings.pkl
-data/*.pkl
-data/*.npy
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-.cache/
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.hypothesis/
-
-# Jupyter
-.ipynb_checkpoints
-*.ipynb
-
-# OS
 Thumbs.db
 desktop.ini
 
-# FastAPI/Uvicorn
-.uvicorn/
+# Docker
+*.pid
+*.seed
+*.bak
+*.swp
+docker-compose.override.yml
+
+# Backups and temp
+*.bak
+*.tmp
+*.swp
+*.orig
+
+# Data / generated demo files
+data/sample_transactions.csv
+products.json
+
+# Cache for embeddings or model outputs
+*.npy
+*.pkl
+.cache_manager/
+__cache__/
+
+# =============================
+# ✅ Custom Zaman Assistant entries
+# =============================
+
+# Local configuration
+backend/.env
+backend/zaman_assistant.db
+backend/__pycache__/
+infra/*.log
+
+# Ignore old models or test files
+backend/models/test_*.py
