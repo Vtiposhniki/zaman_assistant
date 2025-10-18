@@ -6,7 +6,7 @@ starlette==0.48.0
 # ===== Database =====
 SQLAlchemy==2.0.44
 greenlet==3.2.4
-
+python-multipart==0.0.20
 
 # ===== Validation =====
 pydantic==2.12.3
