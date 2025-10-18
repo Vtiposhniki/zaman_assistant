@@ -1,14 +1,13 @@
-# ===== ZAMAN ASSISTANT .dockerignore =====
-# Файлы и директории, исключаемые из Docker build context
+# ===== ZAMAN ASSISTANT .dockerignore (LINUX/WSL) =====
 
-# ===== Git =====
+# Git
 .git/
 .gitignore
 .gitattributes
 *.md
 !README.md
 
-# ===== Python =====
+# Python cache
 __pycache__/
 *.py[cod]
 *$py.class
@@ -19,14 +18,14 @@ dist/
 build/
 *.egg
 
-# ===== Virtual Environments =====
+# Virtual Environments
 venv/
 .venv/
 env/
 ENV/
 .virtualenv/
 
-# ===== IDE =====
+# IDE
 .vscode/
 .idea/
 *.swp
@@ -34,75 +33,98 @@ ENV/
 *~
 .DS_Store
 
-# ===== Database =====
+# Database files
 *.db
 *.sqlite
 *.sqlite3
+zaman_assistant.db
 
-# ===== Environment =====
+# Environment files
 .env
 .env.*
 !.env.example
 *.env
 
-# ===== Logs =====
+# Logs
 *.log
 logs/
 *.out
+*.err
 
-# ===== Testing =====
+# Testing
 .pytest_cache/
 .coverage
 htmlcov/
 .tox/
 .hypothesis/
 *.coverage.*
+.mypy_cache/
+.ruff_cache/
 
-# ===== Jupyter =====
+# Jupyter
 .ipynb_checkpoints/
 *.ipynb
 
-# ===== Data Files (большие файлы) =====
+# Data files (большие файлы)
 data/product_embeddings.pkl
 data/*.pkl
 data/*.npy
 *.csv
 *.xlsx
+*.xls
 
-# ===== Temporary =====
+# Temporary
 tmp/
 temp/
 *.tmp
 .cache/
+backups/
 
-# ===== Docker =====
+# Docker
 docker-compose.yml
 docker-compose.*.yml
 Dockerfile
 .dockerignore
+infra/
 
-# ===== Documentation =====
+# Documentation
 docs/
 *.pdf
 *.docx
 
-# ===== OS Specific =====
+# OS Specific
 Thumbs.db
 desktop.ini
 .DS_Store
+*~
 
-# ===== Backup =====
+# Backup
 *.bak
 *.backup
 backup_*
 
-# ===== Node (если используется frontend) =====
+# Node (если есть frontend)
 node_modules/
 package-lock.json
 yarn.lock
+npm-debug.log
+yarn-error.log
 
-# ===== Misc =====
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+# Build artifacts
 *.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Security
+*.pem
+*.key
+*.cert
+secrets/
+
+# Misc
+.pytest_cache/
+*.cover
+.hypothesis/
