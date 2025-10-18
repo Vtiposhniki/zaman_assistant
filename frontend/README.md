@@ -1,16 +1,133 @@
-# React + Vite
+# Zaman Assistant Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Современное React приложение для финансового ассистента Zaman Bank.
 
-Currently, two official plugins are available:
+## 🚀 Возможности
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Чат с ИИ** - Голосовое и текстовое общение с финансовым ассистентом
+- **Управление целями** - Создание и отслеживание финансовых целей
+- **Аналитика расходов** - Анализ CSV файлов с расходами
+- **Банковские продукты** - Просмотр доступных продуктов банка
+- **Дашборд** - Обзор финансового состояния
 
-## React Compiler
+## 🛠 Технологии
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **React 19** - Современная библиотека для UI
+- **Vite** - Быстрый сборщик
+- **Tailwind CSS** - Utility-first CSS фреймворк
+- **Lucide React** - Иконки
+- **Custom Hooks** - Аудио запись и TTS
 
-## Expanding the ESLint configuration
+## 📦 Установка
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+# Установка зависимостей
+npm install
+
+# Запуск в режиме разработки
+npm run dev
+
+# Сборка для продакшена
+npm run build
+
+# Предварительный просмотр сборки
+npm run preview
+```
+
+## 🔧 Конфигурация
+
+Создайте файл `.env` в корне проекта:
+
+```env
+VITE_API_URL=http://localhost:8000
+VITE_DEV_MODE=true
+```
+
+## 📁 Структура проекта
+
+```
+src/
+├── components/          # React компоненты
+│   ├── Chat/           # Чат интерфейс
+│   ├── Dashboard/      # Дашборд
+│   ├── Goals/          # Управление целями
+│   ├── Products/       # Банковские продукты
+│   ├── Analytics/      # Аналитика расходов
+│   └── UI/             # Переиспользуемые UI компоненты
+├── services/           # API сервисы
+├── hooks/              # Custom React hooks
+├── config/             # Конфигурация
+└── App.jsx            # Главный компонент
+```
+
+## 🎨 Компоненты
+
+### ChatView
+- Голосовое и текстовое общение
+- Различные режимы ассистента (ментор, аналитик, друг, технарь)
+- TTS (Text-to-Speech) озвучивание ответов
+
+### DashboardView
+- Обзор финансового состояния
+- Статистика по целям
+- Индикатор здоровья системы
+
+### GoalsView
+- Создание финансовых целей
+- Отслеживание прогресса
+- Обновление накоплений
+
+### ProductsView
+- Каталог банковских продуктов
+- Информация о депозитах и кредитах
+- Интерактивные карточки продуктов
+
+### AnalyticsView
+- Загрузка CSV файлов с расходами
+- Анализ по категориям
+- Рекомендации по оптимизации
+
+## 🔌 API Интеграция
+
+Приложение интегрируется с backend API через сервисы:
+
+- `ChatService` - Чат и голосовые сообщения
+- `GoalsService` - Управление целями
+- `AnalyticsService` - Анализ расходов
+
+## 📱 Адаптивность
+
+- Полностью адаптивный дизайн
+- Мобильное меню
+- Оптимизация для всех устройств
+
+## 🎯 Особенности UX
+
+- Система уведомлений
+- Обработка ошибок
+- Индикаторы загрузки
+- Плавные анимации
+- Интуитивная навигация
+
+## 🚀 Развертывание
+
+```bash
+# Сборка для продакшена
+npm run build
+
+# Файлы будут в папке dist/
+```
+
+## 🔧 Разработка
+
+```bash
+# Запуск линтера
+npm run lint
+
+# Проверка типов (если используется TypeScript)
+npm run type-check
+```
+
+## 📄 Лицензия
+
+MIT License

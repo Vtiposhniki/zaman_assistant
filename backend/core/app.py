@@ -1,7 +1,7 @@
-# core/app.py - FastAPI Application Factory
+# core/app.py - FastAPI Application Factory (Updated)
 """
 Создание и конфигурация FastAPI приложения.
-Принцип: один файл = одна ответственность.
+Интегрирует все роутеры и middleware.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,8 +30,8 @@ def create_app() -> FastAPI:
     # Создание приложения
     app = FastAPI(
         title="Zaman Assistant API",
-        version="3.1.0",
-        description="AI-powered финансовый ассистент для Zaman Bank",
+        version="4.0.0",
+        description="AI-powered финансовый ассистент для Zaman Bank (Refactored)",
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json"
