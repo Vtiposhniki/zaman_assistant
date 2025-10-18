@@ -1,110 +1,59 @@
+# main.py — Zaman Assistant backend (refactored)
 import os
 import math
 import json
 import time
-import io
 import hashlib
 import asyncio
-from datetime import date, datetime, timedelta
+import logging
+from datetime import date, datetime
 from typing import List, Optional, Dict
 from collections import defaultdict
-from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Depends, WebSocket, WebSocketDisconnect
+
+import httpx
+import numpy as np
+
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Depends, WebSocket, WebSocketDisconnect, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, JSON
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, JSON, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-import requests
+
 from dotenv import load_dotenv
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
 
 load_dotenv()
 
-# ======================
+# -------------------------
+# Logging
+# -------------------------
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("zaman_assistant")
+
+# -------------------------
 # CONFIG
-# ======================
+# -------------------------
 OPENAI_HUB_KEY = os.getenv("OPENAI_HUB_KEY", "")
-OPENAI_HUB_URL = "https://openai-hub.neuraldeep.tech"
+OPENAI_HUB_URL = os.getenv("OPENAI_HUB_URL", "https://openai-hub.neuraldeep.tech")
 MOCK_MODE = os.getenv("MOCK_MODE", "true").lower() in ("1", "true", "yes")
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./zaman_assistant.db")
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")  # optional: set for admin endpoints
 
 HEADERS = {"Authorization": f"Bearer {OPENAI_HUB_KEY}"} if OPENAI_HUB_KEY else {}
+PRODUCTS_PATH = os.path.join(os.path.dirname(__file__), "products.json")
 
-# ======================
-# CACHING LAYER
-# ======================
-class CacheManager:
-    def _init_(self, ttl_seconds=3600):
-        self.cache = {}
-        self.ttl = ttl_seconds
-    
-    def _make_key(self, namespace: str, data: str) -> str:
-        """Generate cache key from namespace + data hash"""
-        content = f"{namespace}:{data}"
-        return hashlib.sha256(content.encode()).hexdigest()[:16]
-    
-    def get(self, namespace: str, key_data: str) -> Optional[str]:
-        """Get cached value"""
-        cache_key = self._make_key(namespace, key_data)
-        if cache_key in self.cache:
-            value, timestamp = self.cache[cache_key]
-            if time.time() - timestamp < self.ttl:
-                return value
-            else:
-                del self.cache[cache_key]
-        return None
-    
-    def set(self, namespace: str, key_data: str, value: str):
-        """Set cache value"""
-        cache_key = self._make_key(namespace, key_data)
-        self.cache[cache_key] = (value, time.time())
-    
-    def clear_namespace(self, namespace: str):
-        """Clear all entries in namespace"""
-        keys_to_delete = [k for k in self.cache.keys() if k.startswith(namespace)]
-        for k in keys_to_delete:
-            del self.cache[k]
-    
-    def stats(self) -> dict:
-        """Get cache statistics"""
-        return {
-            "total_entries": len(self.cache),
-            "ttl_seconds": self.ttl
-        }
-
-cache_manager = CacheManager(ttl_seconds=3600)
-
-# ======================
-# FAQ SYSTEM (no LLM)
-# ======================
-FAQ_RESPONSES = {
-    "как начать копить": "Отлично! Начните с простого: 1) Определите цель и сумму 2) Установите ежемесячный платёж 3) Выберите депозит 'Выгодный' (17% годовых). Давайте создадим ваш финансовый план?",
-    "какой депозит выбрать": "Есть два вариант: 'Овернайт' (12% на 1-12 месяцев, от 1млн KZT) и 'Выгодный' (17% на 3-12 месяцев, от 500K). Выгодный лучше для долгосроч — больше процент!",
-    "как получить кредит": "Есть 3 кредита: беззалоговый (до 10млн, 3-60 мес), залоговый (больше денег, нужен залог) и бизнес-карта (для ИП, до 30 дней). Какой вам нужен?",
-    "сколько процентов на депозит": "Депозит 'Выгодный' дает 17% годовых — лучший вариант. 'Овернайт' немного ниже — 12%. Минимум 500K-1млн KZT.",
-    "как анализировать расходы": "Загрузите CSV с вашими транзакциями. Я разберу категории, найду излишки и подам 3 совета по экономии с конкретными суммами.",
-    "что такое исламский кредит": "Это кредит по исламским принципам (без явных процентов). Вместо интереса — наценка на сумму. Для бизнеса очень выгодно!",
-    "как зарегистрировать бизнес карту": "Просто! Минимум документов, кэшбэк до 1%, лимит 10млн KZT/день. Подходит для ИП и ООО. Хотите оформить?",
-}
-
-def find_faq_answer(user_text: str) -> Optional[str]:
-    """Find FAQ answer if question matches"""
-    text_lower = user_text.lower()
-    for pattern, answer in FAQ_RESPONSES.items():
-        if pattern in text_lower:
-            return answer
-    return None
-
-# ======================
-# DATABASE SETUP
-# ======================
+# -------------------------
+# DB setup
+# -------------------------
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# -------------------------
+# MODELS
+# -------------------------
 class User(Base):
-    _tablename_ = "users"
+    __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=True)
     age = Column(Integer, nullable=True)
@@ -113,7 +62,7 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class Goal(Base):
-    _tablename_ = "goals"
+    __tablename__ = "goals"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, nullable=True)
     name = Column(String)
@@ -125,7 +74,7 @@ class Goal(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class ConversationLog(Base):
-    _tablename_ = "conversation_logs"
+    __tablename__ = "conversation_logs"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, nullable=True)
     role = Column(String)
@@ -134,15 +83,18 @@ class ConversationLog(Base):
     latency_ms = Column(Float, nullable=True)
 
 class Metric(Base):
-    _tablename_ = "metrics"
+    __tablename__ = "metrics"
     id = Column(Integer, primary_key=True, index=True)
     metric_name = Column(String)
     value = Column(Float)
-    metadata = Column(JSON, nullable=True)
+    metric_metadata = Column(JSON, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
 
 Base.metadata.create_all(bind=engine)
 
+# -------------------------
+# DEPENDENCY
+# -------------------------
 def get_db():
     db = SessionLocal()
     try:
@@ -150,180 +102,240 @@ def get_db():
     finally:
         db.close()
 
-# ======================
-# FASTAPI APP
-# ======================
-app = FastAPI(
-    title="Zaman Assistant - Production Backend",
-    description="AI-powered banking assistant with WebSocket, caching, and analytics",
-    version="2.1.0"
-)
+# -------------------------
+# CACHE: namespace-aware
+# -------------------------
+class CacheManager:
+    def __init__(self, ttl_seconds: int = 3600):
+        self.cache: Dict[str, tuple] = {}  # key -> (value, ts)
+        self.ttl = ttl_seconds
+        self.namespace_map = defaultdict(set)  # namespace -> set(keys)
+        self.lock = asyncio.Lock()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    def _make_raw_key(self, namespace: str, data: str) -> str:
+        content = f"{namespace}:{data}"
+        return hashlib.sha256(content.encode()).hexdigest()
 
-request_counts = defaultdict(list)
+    async def get(self, namespace: str, key_data: str) -> Optional[str]:
+        key = self._make_raw_key(namespace, key_data)
+        entry = self.cache.get(key)
+        if not entry:
+            return None
+        value, ts = entry
+        if time.time() - ts < self.ttl:
+            return value
+        # expired
+        await self._delete_key(namespace, key)
+        return None
 
-def check_rate_limit(ip: str, limit=50):
-    now = time.time()
-    request_counts[ip] = [t for t in request_counts[ip] if now - t < 3600]
-    if len(request_counts[ip]) >= limit:
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
-    request_counts[ip].append(now)
+    async def set(self, namespace: str, key_data: str, value: str):
+        key = self._make_raw_key(namespace, key_data)
+        self.cache[key] = (value, time.time())
+        self.namespace_map[namespace].add(key)
 
-# ======================
-# LOAD PRODUCTS & EMBEDDINGS
-# ======================
-PRODUCTS_PATH = os.path.join(os.path.dirname(_file_), "products.json")
-with open(PRODUCTS_PATH, "r", encoding="utf-8") as f:
-    PRODUCTS = json.load(f)
+    async def _delete_key(self, namespace: str, key: str):
+        self.cache.pop(key, None)
+        if namespace in self.namespace_map and key in self.namespace_map[namespace]:
+            self.namespace_map[namespace].remove(key)
 
-PRODUCT_EMBEDDINGS = {}
+    async def clear_namespace(self, namespace: str):
+        keys = list(self.namespace_map.get(namespace, []))
+        for k in keys:
+            self.cache.pop(k, None)
+        self.namespace_map.pop(namespace, None)
 
-# ======================
+    def stats(self) -> dict:
+        return {"total_entries": len(self.cache), "ttl_seconds": self.ttl}
+
+cache_manager = CacheManager(ttl_seconds=3600)
+
+class FeedbackReq(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    comment: Optional[str] = None
+    user_id: Optional[int] = None
+# -------------------------
+# FAQ
+# -------------------------
+FAQ_RESPONSES = {
+    "как начать копить": "Отлично! Начните с простого: 1) Определите цель и сумму 2) Установите ежемесячный платёж 3) Выберите депозит 'Выгодный' (17% годовых). Давайте создадим ваш финансовый план?",
+    "какой депозит выбрать": "Есть два вариант: 'Овернайт' (12% на 1-12 месяцев, от 1млн KZT) и 'Выгодный' (17% на 3-12 месяцев, от 500K).",
+    "как получить кредит": "Есть 3 кредита: беззалоговый (до 10млн, 3-60 мес), залоговый (больше денег, нужен залог) и бизнес-карта (для ИП). Какой вам нужен?",
+    "сколько процентов на депозит": "Депозит 'Выгодный' дает 17% годовых — лучший вариант.",
+    "как анализировать расходы": "Загрузите CSV с вашими транзакциями. Я разберу категории и дам советы.",
+    "что такое исламский кредит": "Это кредит по исламским принципам (без явных процентов). Вместо интереса — наценка на сумму.",
+    "как зарегистрировать бизнес карту": "Требуется минимум документов, кэшбэк до 1%, лимит 10млн KZT/день."
+}
+
+def find_faq_answer(user_text: str) -> Optional[str]:
+    if not user_text:
+        return None
+    text_lower = user_text.lower()
+    for pattern, answer in FAQ_RESPONSES.items():
+        if pattern in text_lower:
+            return answer
+    return None
+
+# -------------------------
+# PRODUCTS load
+# -------------------------
+if not os.path.exists(PRODUCTS_PATH):
+    logger.warning("products.json not found at %s — products endpoints will error.", PRODUCTS_PATH)
+    PRODUCTS = []
+else:
+    with open(PRODUCTS_PATH, "r", encoding="utf-8") as f:
+        PRODUCTS = json.load(f)
+
+PRODUCT_EMBEDDINGS: Dict[str, List[float]] = {}
+
+# -------------------------
 # SYSTEM PROMPT
-# ======================
+# -------------------------
 SYSTEM_PROMPT = """Ты — Zaman Assistant, дружелюбный и эмпатичный AI-ассистент банка Zaman Bank.
+Говори по-русски, кратко (2-3 предложения). Всегда указывай сроки и ежемесячную сумму при планировании. Если данных недостаточно — задай один уточняющий вопрос.
+"""
 
-ТВОИ ОСНОВНЫЕ ЗАДАЧИ:
-1. Помогать клиентам ставить и достигать финансовые цели (квартира, обучение, путешествия)
-2. Анализировать расходы и давать персонализированные советы
-3. Подбирать лучшие банковские продукты (депозиты, кредиты, карты)
-4. Мотивировать клиентов и помогать справляться со стрессом
-
-ПРАВИЛА ОБЩЕНИЯ:
-- Говори на русском языке, тепло и по-человечески
-- Отвечай кратко: 2-3 предложения + конкретное действие
-- При планировании ВСЕГДА указывай: срок, ежемесячную сумму, 2-3 совета
-- Если подходят продукты банка — называй топ-3 с обоснованием
-- Если данных недостаточно — задай ОДИН уточняющий вопрос
-- При стрессе клиента — дай 3 немонетарных совета + 1 финансовый шаг
-- НЕ давай юридических или регуляторных советов
-
-ПРОДУКТЫ БАНКА:
-- Исламские кредиты (беззалоговые и залоговые, 3-60 мес)
-- Депозиты: "Овернайт" (12%), "Выгодный" (17%)
-- Бизнес-карта (овердрафт до 10 млн KZT)
-- РКО тарифы для бизнеса
-
-ТВОЙ СТИЛЬ: профессиональный, но не холодный; экспертный, но не высокомерный; мотивирующий, но не навязчивый."""
-
-# ======================
-# HELPER FUNCTIONS
-# ======================
-def call_llm(messages: List[dict], model="gpt-4o-mini", max_tokens=500) -> tuple:
-    """Call LLM and return (response, latency_ms)"""
+# -------------------------
+# HELPERS: LLM & Embeddings (async)
+# -------------------------
+async def call_llm_async(messages: List[dict], model="gpt-4o-mini", max_tokens: int = 500, temperature: float = 0.7) -> tuple:
+    """Async LLM call via httpx; returns (response_text, latency_ms)"""
     start = time.time()
-    
     if MOCK_MODE:
-        time.sleep(0.3)
+        await asyncio.sleep(0.15)
         user_text = ""
         for m in messages:
             if m.get("role") == "user":
                 user_text = m.get("content", "")
-        
-        if "цель" in user_text.lower() or "накопить" in user_text.lower():
-            response = "Отличная цель! Я рассчитал ваш план накоплений. Вам нужно откладывать примерно 166,000 KZT в месяц в течение 5 лет. Рекомендую депозит 'Выгодный' (доходность 17%) для максимального роста накоплений. Хотите, я подберу оптимальную стратегию?"
-        elif "транзакц" in user_text.lower() or "расход" in user_text.lower():
-            response = "Я проанализировал ваши расходы за последний месяц. Основные категории: Продукты питания 35%, Транспорт 20%, Развлечения 15%. Совет: сократив расходы на кафе на 20%, вы сможете откладывать дополнительно 25,000 KZT в месяц."
-        elif "стресс" in user_text.lower() or "тревога" in user_text.lower():
-            response = "Понимаю ваши чувства. Попробуйте: 1) 10-минутную прогулку на свежем воздухе, 2) дыхательную практику 4-7-8, 3) позвонить близкому человеку. Финансовый шаг: отложите решение о крупной покупке на 48 часов — это поможет принять взвешенное решение."
+        ut = user_text.lower()
+        if "цель" in ut or "накопить" in ut:
+            resp = "Отличная цель! Примерный план: откладывать 166,000 KZT/мес в течение 5 лет. Рекомендую депозит 'Выгодный' (17%)."
+        elif "транзакц" in ut or "расход" in ut:
+            resp = "Анализ расходов: продукты 35%, транспорт 20%, развлечения 15%. Сократив кафе на 20% — можно откладывать +25,000 KZT."
+        elif "стресс" in ut or "тревог" in ut:
+            resp = "Понимаю. Попробуйте прогулку 10 мин, дыхательное упражнение, и отложите крупную покупку на 48 часов."
         else:
-            response = "Здравствуйте! Я Zaman Assistant — ваш персональный финансовый помощник. Могу помочь с планированием целей, анализом расходов и подбором продуктов банка. Чем могу быть полезен?"
-        
+            resp = "Здравствуйте! Я Zaman Assistant — могу помочь с целями, анализом расходов и подбором продуктов. Чем помочь?"
         latency = (time.time() - start) * 1000
-        return response, latency
-    
-    payload = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": 0.7
-    }
-    
-    try:
-        r = requests.post(
-            f"{OPENAI_HUB_URL}/v1/chat/completions",
-            headers={**HEADERS, "Content-Type": "application/json"},
-            json=payload,
-            timeout=30
-        )
-        r.raise_for_status()
-        data = r.json()
-        
-        response = ""
-        if "choices" in data and len(data["choices"]) > 0:
-            response = data["choices"][0]["message"]["content"]
-        else:
-            response = json.dumps(data)
-        
-        latency = (time.time() - start) * 1000
-        return response, latency
-    
-    except Exception as e:
-        print(f"LLM error: {e}")
-        latency = (time.time() - start) * 1000
-        return "Извините, возникла временная проблема. Попробуйте переформулировать вопрос.", latency
+        return resp, latency
 
-def get_embedding(text: str) -> Optional[List[float]]:
-    """Get text embedding"""
+    payload = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": temperature}
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(f"{OPENAI_HUB_URL}/v1/chat/completions", headers={**HEADERS, "Content-Type": "application/json"}, json=payload)
+            r.raise_for_status()
+            data = r.json()
+            resp = ""
+            if "choices" in data and len(data["choices"]) > 0:
+                resp = data["choices"][0]["message"].get("content", "")
+            else:
+                resp = json.dumps(data)
+            latency = (time.time() - start) * 1000
+            return resp, latency
+    except Exception as e:
+        logger.error("LLM call error: %s", e)
+        latency = (time.time() - start) * 1000
+        return "Извините, возникла временная проблема с сервисом LLM.", latency
+
+async def get_embedding_async(text: str) -> Optional[List[float]]:
     if MOCK_MODE:
-        return np.random.rand(1536).tolist()
-    
+        # consistent deterministic pseudo-random vector for caching stability (hash seed)
+        rng = np.random.default_rng(abs(int(hashlib.sha256(text.encode()).hexdigest()[:8], 16)))
+        return rng.random(1536).tolist()
+    payload = {"model": "text-embedding-3-small", "input": text}
     try:
-        payload = {
-            "model": "text-embedding-3-small",
-            "input": text
-        }
-        r = requests.post(
-            f"{OPENAI_HUB_URL}/v1/embeddings",
-            headers={**HEADERS, "Content-Type": "application/json"},
-            json=payload,
-            timeout=15
-        )
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.post(f"{OPENAI_HUB_URL}/v1/embeddings", headers={**HEADERS, "Content-Type": "application/json"}, json=payload)
         r.raise_for_status()
         data = r.json()
-        
         if "data" in data and len(data["data"]) > 0:
-            return data["data"][0]["embedding"]
+                return data["data"][0].get("embedding")
         return None
-    
     except Exception as e:
-        print(f"Embedding error: {e}")
+        logger.error("Embedding error: %s", e)
         return None
 
-def initialize_product_embeddings():
-    """Pre-compute embeddings for all products"""
-    global PRODUCT_EMBEDDINGS
-    
+async def initialize_product_embeddings_async():
+    """Pre-compute embeddings for all products (background)"""
+    if not PRODUCTS:
+        logger.info("No products to embed.")
+        return
+    logger.info("Starting product embeddings initialization (%d products)...", len(PRODUCTS))
     for product in PRODUCTS:
-        text = f"{product['name']} {product['type']} {product.get('short_desc', '')}"
-        embedding = get_embedding(text)
-        if embedding:
-            PRODUCT_EMBEDDINGS[product['id']] = embedding
+        pid = str(product.get("id") or product.get("name"))
+        text = f"{product.get('name', '')} {product.get('type','')} {product.get('short_desc','')}"
+        emb = await get_embedding_async(text)
+        if emb:
+            PRODUCT_EMBEDDINGS[pid] = emb
+    logger.info("Product embeddings ready: %d", len(PRODUCT_EMBEDDINGS))
 
-@app.on_event("startup")
-async def startup_event():
-    initialize_product_embeddings()
-    print(f"✅ Loaded {len(PRODUCTS)} products with embeddings")
-
+# -------------------------
+# UTIL
+# -------------------------
 def months_between(from_date: date, to_date: date) -> int:
     return max(1, (to_date.year - from_date.year) * 12 + (to_date.month - from_date.month))
 
 def log_metric(db: Session, name: str, value: float, metadata: dict = None):
-    """Log metric to database"""
-    metric = Metric(metric_name=name, value=value, metadata=metadata)
-    db.add(metric)
-    db.commit()
+    try:
+        metric = Metric(metric_name=name, value=value, metric_metadata=metadata)
+        db.add(metric)
+        db.commit()
+    except Exception as e:
+        logger.exception("Failed to log metric: %s", e)
 
-# ======================
+# -------------------------
+# FASTAPI app
+# -------------------------
+app = FastAPI(title="Zaman Assistant", version="2.1.0")
+app.add_middleware(CORSMiddleware, allow_origins=[""], allow_credentials=True, allow_methods=[""], allow_headers=["*"])
+
+# -------------------------
+# Simple in-memory rate limit (per-ip per hour)
+# -------------------------
+request_counts = defaultdict(list)
+RATE_LIMIT_LOCK = asyncio.Lock()
+
+async def check_rate_limit(ip: str, limit: int = 200):
+    now = time.time()
+    async with RATE_LIMIT_LOCK:
+        lst = request_counts[ip]
+        # keep only last hour
+        request_counts[ip] = [t for t in lst if now - t < 3600]
+        if len(request_counts[ip]) >= limit:
+            raise HTTPException(status_code=429, detail="Rate limit exceeded")
+        request_counts[ip].append(now)
+
+# -------------------------
+# Connection manager for websockets
+# -------------------------
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+        self.lock = asyncio.Lock()
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        async with self.lock:
+            self.active_connections.append(websocket)
+
+    async def disconnect(self, websocket: WebSocket):
+        async with self.lock:
+            if websocket in self.active_connections:
+                self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: str):
+        async with self.lock:
+            for ws in list(self.active_connections):
+                try:
+                    await ws.send_text(message)
+                except Exception:
+                    # ignore/send errors
+                    pass
+
+manager = ConnectionManager()
+
+# -------------------------
 # PYDANTIC MODELS
-# ======================
+# -------------------------
 class CreateGoalReq(BaseModel):
     name: str
     target_amount: float = Field(gt=0)
@@ -346,122 +358,91 @@ class RecommendReq(BaseModel):
     goal_type: Optional[str] = None
     use_semantic_search: bool = True
 
-# ======================
-# WEBSOCKET CHAT
-# ======================
-class ConnectionManager:
-    def _init_(self):
-        self.active_connections: List[WebSocket] = []
-    
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-    
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+# -------------------------
+# Startup events
+# -------------------------
+@app.on_event("startup")
+async def on_startup():
+    # async initialization of product embeddings (non-blocking)
+    asyncio.create_task(initialize_product_embeddings_async())
+    logger.info("🚀 ZAMAN ASSISTANT backend starting. MOCK_MODE=%s", MOCK_MODE)
+    logger.info("Products loaded: %d", len(PRODUCTS))
 
-manager = ConnectionManager()
-
+# -------------------------
+# WebSocket chat endpoint
+# -------------------------
 @app.websocket("/ws/chat/{user_id}")
-async def websocket_chat(websocket: WebSocket, user_id: int, db: Session = Depends(get_db)):
-    """WebSocket chat endpoint with streaming responses"""
+async def websocket_chat(websocket: WebSocket, user_id: int):
     await manager.connect(websocket)
     try:
         while True:
-            data = await websocket.receive_text()
-            user_message = json.loads(data)
-            
-            # Check FAQ first (instant response)
-            faq_answer = find_faq_answer(user_message.get("content", ""))
-            if faq_answer:
-                response = {
-                    "type": "faq",
-                    "content": faq_answer,
-                    "latency_ms": 0,
-                    "from_cache": False
-                }
-                await websocket.send_text(json.dumps(response))
-                
-                log_entry = ConversationLog(
-                    user_id=user_id,
-                    role="user",
-                    content=user_message.get("content", "")
-                )
-                db.add(log_entry)
-                
-                faq_log = ConversationLog(
-                    user_id=user_id,
-                    role="assistant",
-                    content=faq_answer,
-                    latency_ms=0
-                )
-                db.add(faq_log)
-                db.commit()
+            raw = await websocket.receive_text()
+            try:
+                user_message = json.loads(raw)
+            except Exception:
+                await websocket.send_text(json.dumps({"error": "invalid message format"}))
+                continue
+
+            content = user_message.get("content", "")
+            # check FAQ
+            faq = find_faq_answer(content)
+            if faq:
+                await websocket.send_text(json.dumps({"type": "faq", "content": faq, "latency_ms": 0, "from_cache": False}))
+                # log asynchronously to DB to avoid blocking
+                asyncio.create_task(_async_log_conversation(user_id, "user", content))
+                asyncio.create_task(_async_log_conversation(user_id, "assistant", faq, latency_ms=0.0))
+                continue
+
+            # check cache
+            cached = await cache_manager.get("chat", content)
+            if cached:
+                await websocket.send_text(json.dumps({"type": "cached", "content": cached, "latency_ms": 5, "from_cache": True}))
+                asyncio.create_task(_async_log_conversation(user_id, "user", content))
                 continue
             
-            # Check cache for similar questions
-            cache_key = user_message.get("content", "")
-            cached_response = cache_manager.get("chat", cache_key)
-            
-            if cached_response:
-                response = {
-                    "type": "cached",
-                    "content": cached_response,
-                    "latency_ms": 5,
-                    "from_cache": True
-                }
-                await websocket.send_text(json.dumps(response))
-            else:
-                # Call LLM with streaming simulation
-                messages = [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": user_message.get("content", "")}
-                ]
-                
-                full_response, latency = call_llm(messages)
-                
-                # Simulate streaming by sending chunks
-                chunk_size = 10
-                for i in range(0, len(full_response), chunk_size):
-                    chunk = full_response[i:i + chunk_size]
-                    response = {
-                        "type": "stream",
-                        "content": chunk,
-                        "latency_ms": latency if i == 0 else 0,
-                        "from_cache": False,
-                        "done": i + chunk_size >= len(full_response)
-                    }
-                    await websocket.send_text(json.dumps(response))
-                    await asyncio.sleep(0.02)
-                
-                # Cache the full response
-                cache_manager.set("chat", cache_key, full_response)
-            
-            # Log conversation
-            log_entry = ConversationLog(
-                user_id=user_id,
-                role="user",
-                content=user_message.get("content", "")
-            )
-            db.add(log_entry)
-            db.commit()
-            
-            log_metric(db, "websocket_chat", 1.0)
-    
+            # call llm
+            messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": content}]
+            response_text, latency = await call_llm_async(messages)
+            # stream: simple chunking
+            chunk_size = 60
+            for i in range(0, len(response_text), chunk_size):
+                chunk = response_text[i:i+chunk_size]
+                done = (i + chunk_size) >= len(response_text)
+                await websocket.send_text(json.dumps({"type": "stream", "content": chunk, "latency_ms": latency if i == 0 else 0, "from_cache": False, "done": done}))
+                await asyncio.sleep(0.01)
+            # cache
+            await cache_manager.set("chat", content, response_text)
+            # log
+            asyncio.create_task(_async_log_conversation(user_id, "user", content))
+            asyncio.create_task(_async_log_conversation(user_id, "assistant", response_text, latency_ms=latency))
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        await manager.disconnect(websocket)
     except Exception as e:
-        print(f"WebSocket error: {e}")
-        manager.disconnect(websocket)
+        logger.exception("WebSocket error: %s", e)
+        await manager.disconnect(websocket)
 
-# ======================
-# REST ENDPOINTS
-# ======================
+# helper for async DB logging (run in thread)
+async def _async_log_conversation(user_id: int, role: str, content: str, latency_ms: Optional[float] = None):
+    await asyncio.to_thread(_sync_log_conversation, user_id, role, content, latency_ms)
+
+def _sync_log_conversation(user_id: int, role: str, content: str, latency_ms: Optional[float] = None):
+    db = SessionLocal()
+    try:
+        entry = ConversationLog(user_id=user_id, role=role, content=content, latency_ms=latency_ms)
+        db.add(entry)
+        db.commit()
+    except Exception:
+        logger.exception("Failed to write conversation log")
+    finally:
+        db.close()
+
+# -------------------------
+# REST endpoints
+# -------------------------
 @app.get("/health")
-def health(db: Session = Depends(get_db)):
-    total_goals = db.query(Goal).count()
-    total_users = db.query(User).count()
-    
+async def health(db: Session = Depends(get_db)):
+    total_goals = db.query(func.count(Goal.id)).scalar() or 0
+    total_users = db.query(func.count(User.id)).scalar() or 0
     return {
         "status": "ok",
         "version": "2.1.0",
@@ -475,15 +456,15 @@ def health(db: Session = Depends(get_db)):
     }
 
 @app.post("/create_goal")
-def create_goal(req: CreateGoalReq, request: Request, db: Session = Depends(get_db)):
-    """Create financial goal with AI planning"""
-    check_rate_limit(request.client.host)
-    
+async def create_goal(req: CreateGoalReq, request: Request, db: Session = Depends(get_db)):
+    ip = request.client.host
+    await check_rate_limit(ip)
+    # parse date
     try:
         y, m, d = map(int, req.target_date.split("-"))
         target = date(y, m, d)
     except Exception:
-        raise HTTPException(400, "target_date must be YYYY-MM-DD")
+        raise HTTPException(status_code=400, detail="target_date must be YYYY-MM-DD")
     
     today = date.today()
     months = months_between(today, target)
@@ -506,21 +487,16 @@ def create_goal(req: CreateGoalReq, request: Request, db: Session = Depends(get_
     tips_prompt = f"""Клиент создал цель "{req.name}" на сумму {req.target_amount:,.0f} KZT за {months} месяцев.
 Текущие накопления: {req.current_savings:,.0f} KZT.
 Ежемесячно нужно: {monthly_needed:,.0f} KZT.
-Доход: {req.income or 'не указан'} KZT, расходы: {req.expenses or 'не указан'} KZT.
-
+Доход: {req.income or 'не указан'} KZT, расходы: {req.expenses or 'не указаны'} KZT.
 Дай ровно 3 конкретных, персонализированных совета по накоплению и экономии (каждый совет — 1 предложение)."""
     
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": tips_prompt}
-    ]
-    
-    ai_tips, latency = call_llm(messages, max_tokens=300)
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": tips_prompt}]
+    ai_tips, latency = await call_llm_async(messages, max_tokens=300)
     
     log_metric(db, "goal_created", 1.0, {"goal_id": goal.id, "amount": req.target_amount})
     log_metric(db, "llm_latency_ms", latency)
     
-    progress = round((req.current_savings / req.target_amount) * 100, 1) if req.target_amount > 0 else 0
+    progress = round((req.current_savings / req.target_amount) * 100, 1) if req.target_amount > 0 else 0.0
     
     return {
         "goal_id": goal.id,
@@ -536,199 +512,110 @@ def create_goal(req: CreateGoalReq, request: Request, db: Session = Depends(get_
     }
 
 @app.get("/goals")
-def get_goals(user_id: Optional[int] = None, db: Session = Depends(get_db)):
-    """Get all goals"""
-    query = db.query(Goal)
+async def get_goals(user_id: Optional[int] = None, db: Session = Depends(get_db)):
+    q = db.query(Goal)
     if user_id:
-        query = query.filter(Goal.user_id == user_id)
-    
-    goals = query.order_by(Goal.created_at.desc()).all()
-    
-    return {
-        "goals": [
-            {
+        q = q.filter(Goal.user_id == user_id)
+    goals = q.order_by(Goal.created_at.desc()).all()
+    out = []
+    for g in goals:
+        prog = round((g.current_savings / g.target_amount) * 100, 1) if g.target_amount else 0.0
+        out.append({
                 "id": g.id,
                 "name": g.name,
                 "target_amount": g.target_amount,
                 "current_savings": g.current_savings,
                 "monthly_needed": g.monthly_needed,
-                "progress_percent": round((g.current_savings / g.target_amount) * 100, 1),
+            "progress_percent": prog,
                 "status": g.status,
                 "created_at": g.created_at.isoformat()
-            }
-            for g in goals
-        ],
-        "total": len(goals)
-    }
+        })
+    return {"goals": out, "total": len(out)}
 
 @app.post("/chat")
-def chat(req: ChatReq, request: Request, db: Session = Depends(get_db)):
-    """REST chat endpoint (legacy, use WebSocket for production)"""
-    check_rate_limit(request.client.host)
-    
+async def chat(req: ChatReq, request: Request, db: Session = Depends(get_db)):
+    ip = request.client.host
+    await check_rate_limit(ip)
     user_text = ""
     for m in req.messages:
         if m.get("role") == "user":
             user_text = m.get("content", "")
             break
     
-    # Check FAQ first
-    faq_answer = find_faq_answer(user_text)
-    if faq_answer:
+    faq = find_faq_answer(user_text)
+    if faq:
         if req.user_id:
-            log_entry = ConversationLog(
-                user_id=req.user_id,
-                role="user",
-                content=user_text
-            )
-            db.add(log_entry)
-            db.commit()
-        
-        return {
-            "reply": faq_answer,
-            "latency_ms": 0,
-            "from_cache": False,
-            "type": "faq"
-        }
-    
-    # Check cache
-    cached = cache_manager.get("chat", user_text)
+            # log
+            await asyncio.to_thread(_sync_log_conversation, req.user_id, "user", user_text)
+            await asyncio.to_thread(_sync_log_conversation, req.user_id, "assistant", faq, 0.0)
+        return {"reply": faq, "latency_ms": 0, "from_cache": False, "type": "faq"}
+
+    cached = await cache_manager.get("chat", user_text)
     if cached:
         if req.user_id:
-            log_entry = ConversationLog(
-                user_id=req.user_id,
-                role="user",
-                content=user_text
-            )
-            db.add(log_entry)
-            db.commit()
-        
-        return {
-            "reply": cached,
-            "latency_ms": 5,
-            "from_cache": True,
-            "type": "cached"
-        }
-    
-    # Call LLM
+            await asyncio.to_thread(_sync_log_conversation, req.user_id, "user", user_text)
+        return {"reply": cached, "latency_ms": 5, "from_cache": True, "type": "cached"}
+
     system_msg = {"role": "system", "content": SYSTEM_PROMPT}
     messages = [system_msg] + req.messages
-    
-    reply, latency = call_llm(messages)
-    
-    # Cache response
-    cache_manager.set("chat", user_text, reply)
-    
-    # Log conversation
+    reply, latency = await call_llm_async(messages)
+    await cache_manager.set("chat", user_text, reply)
+
     if req.user_id:
-        for msg in req.messages:
-            log_entry = ConversationLog(
-                user_id=req.user_id,
-                role=msg["role"],
-                content=msg["content"]
-            )
-            db.add(log_entry)
-        
-        assistant_log = ConversationLog(
-            user_id=req.user_id,
-            role="assistant",
-            content=reply,
-            latency_ms=latency
-        )
-        db.add(assistant_log)
-        db.commit()
+        # log messages in background
+        asyncio.create_task(_async_log_conversation(req.user_id, "user", user_text))
+        asyncio.create_task(_async_log_conversation(req.user_id, "assistant", reply, latency_ms=latency))
     
     log_metric(db, "chat_request", 1.0)
     log_metric(db, "llm_latency_ms", latency)
     
-    return {
-        "reply": reply,
-        "latency_ms": round(latency, 2),
-        "from_cache": False,
-        "type": "llm"
-    }
+    return {"reply": reply, "latency_ms": round(latency, 2), "from_cache": False, "type": "llm"}
 
 @app.post("/recommend")
-def recommend(req: RecommendReq, request: Request, db: Session = Depends(get_db)):
-    """Recommend top-3 products using scoring + semantic search"""
-    check_rate_limit(request.client.host)
+async def recommend(req: RecommendReq, request: Request, db: Session = Depends(get_db)):
+    ip = request.client.host
+    await check_rate_limit(ip)
     
     candidates = []
-    
+    # semantic search if possible
     if req.use_semantic_search and req.goal_type and PRODUCT_EMBEDDINGS:
         query_text = f"финансовая цель {req.goal_type} {req.goal_amount} {req.months} месяцев"
-        query_embedding = get_embedding(query_text)
-        
-        if query_embedding:
-            similarities = {}
-            for prod_id, prod_emb in PRODUCT_EMBEDDINGS.items():
-                sim = cosine_similarity([query_embedding], [prod_emb])[0][0]
-                similarities[prod_id] = sim
-            
+        query_emb = await get_embedding_async(query_text)
+        if query_emb:
+            # compute cosine similarity quickly (numpy)
+            q = np.array(query_emb)
             for prod in PRODUCTS:
-                if prod['id'] in similarities and similarities[prod['id']] > 0.5:
-                    candidates.append(prod)
-        
+                pid = str(prod.get("id") or prod.get("name"))
+                emb = PRODUCT_EMBEDDINGS.get(pid)
+                if emb:
+                    sim = float(np.dot(q, np.array(emb)) / (np.linalg.norm(q) * np.linalg.norm(np.array(emb)) + 1e-9))
+                    if sim > 0.45:  # threshold tuned for recall
+                        candidates.append(prod)
         if not candidates:
-            candidates = PRODUCTS
+            candidates = PRODUCTS.copy()
     else:
-        candidates = PRODUCTS
+        candidates = PRODUCTS.copy()
     
-    def score_product(prod, goal_amount, months, age, goal_type):
-        score = 0.0
-        
-        if prod.get("min_age") and age and age < prod["min_age"]:
+    def score_product(p, goal_amount, months, age, goal_type=None):
+        try:
+            yield_pct = float(p.get("expected_yield") or 0)
+            term = float(p.get("min_term_months") or months or 1)
+            risk = float(p.get("risk_level") or 1)
+
+            profit = (yield_pct / 100) * (goal_amount / 12) * (months / term)
+            base_score = profit / (risk + 1)
+            goal_match_bonus = 0.15 if goal_type and goal_type.lower() in p["name"].lower() else 0.0
+            score = round(base_score * (1 + goal_match_bonus), 4)
+            return score if score > 0 else 0.0
+        except Exception as e:
+            print(f"⚠️ Score error for product {p.get('name')}: {e}")
             return 0.0
-        if prod.get("max_age") and age and age > prod["max_age"]:
-            return 0.0
-        
-        min_t = prod.get("min_term_months")
-        max_t = prod.get("max_term_months")
-        if min_t and max_t:
-            if min_t <= months <= max_t:
-                score += 0.25
-        else:
-            score += 0.20
-        
-        min_a = prod.get("min_amount")
-        max_a = prod.get("max_amount")
-        if min_a and max_a:
-            if min_a <= goal_amount <= max_a:
-                score += 0.30
-            elif goal_amount < min_a:
-                score += 0.10
-        else:
-            score += 0.25
-        
-        if goal_type:
-            g = goal_type.lower()
-            prod_type = prod.get("type", "").lower()
-            prod_name = prod.get("name", "").lower()
-            
-            if any(w in g for w in ["квартир", "жиль", "дом", "ипотек"]):
-                if "кредит" in prod_type:
-                    score += 0.20
-                elif "депозит" in prod_type:
-                    score += 0.15
-            elif any(w in g for w in ["обучен", "учеб"]):
-                if "депозит" in prod_type:
-                    score += 0.20
-            elif any(w in g for w in ["бизнес", "компан"]):
-                if "карта" in prod_name or "рко" in prod_type:
-                    score += 0.20
-        
-        profit = prod.get("expected_yield", 0)
-        if profit > 0:
-            score += 0.15 * min(1.0, profit / 20.0)
-        
-        return min(1.0, score)
     
     scored = []
     for p in candidates:
         s = score_product(p, req.goal_amount, req.months, req.age, req.goal_type)
         if s > 0:
             scored.append((s, p))
-    
     scored.sort(key=lambda x: x[0], reverse=True)
     
     top = []
@@ -740,236 +627,90 @@ def recommend(req: RecommendReq, request: Request, db: Session = Depends(get_db)
             cond_parts.append(f"от {p['min_amount']:,} KZT")
         if p.get("min_term_months") and p.get("max_term_months"):
             cond_parts.append(f"срок {p['min_term_months']}-{p['max_term_months']} мес")
-        
         conditions = ", ".join(cond_parts) if cond_parts else "гибкие условия"
-        
         explain_prompt = f"""Клиент планирует накопить {req.goal_amount:,.0f} KZT за {req.months} месяцев на цель: {req.goal_type or 'не указана'}.
-
-Подходящий продукт: "{p['name']}" — {p['short_desc']}
+Подходящий продукт: "{p['name']}" — {p.get('short_desc','')}
 Условия: {conditions}
-
-Объясни клиенту простым языком (2-3 предложения):
-1. Почему этот продукт подходит для его цели
-2. Как именно он поможет достичь результата
-3. Первый конкретный шаг для оформления"""
-        
-        explanation, _ = call_llm([
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": explain_prompt}
-        ], max_tokens=250)
-        
+Объясни клиенту простым языком (2-3 предложения): 1) Почему этот продукт подходит 2) Как он поможет 3) Первый шаг для оформления"""
+        explanation, _ = await call_llm_async([{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": explain_prompt}], max_tokens=250)
         top.append({
-            "product": {
-                "id": p["id"],
-                "name": p["name"],
-                "type": p["type"],
-                "short_desc": p["short_desc"]
-            },
+            "product": {"id": p.get("id"), "name": p.get("name"), "type": p.get("type"), "short_desc": p.get("short_desc")},
             "score": round(float(s), 3),
             "conditions": conditions,
             "explanation": explanation
         })
     
     log_metric(db, "recommendation_request", 1.0, {"products_returned": len(top)})
-    
-    return {
-        "recommendations": top,
-        "total_analyzed": len(candidates),
-        "semantic_search_used": req.use_semantic_search and bool(PRODUCT_EMBEDDINGS)
-    }
+    return {"recommendations": top, "total_analyzed": len(candidates), "semantic_search_used": req.use_semantic_search and bool(PRODUCT_EMBEDDINGS)}
 
 @app.get("/products")
-def list_products(category: Optional[str] = None):
-    """List all products (optionally filtered)"""
-    products = PRODUCTS
-    
+async def list_products(category: Optional[str] = None):
+    prods = PRODUCTS
     if category:
-        products = [p for p in products if category.lower() in p.get("type", "").lower()]
-    
-    return {
-        "products": products,
-        "total": len(products),
-        "categories": list(set(p["type"] for p in PRODUCTS))
-    }
+        prods = [p for p in PRODUCTS if category.lower() in p.get("type", "").lower()]
+    return {"products": prods, "total": len(prods), "categories": list({p.get("type") for p in PRODUCTS})}
 
 @app.get("/cache/stats")
-def cache_stats(db: Session = Depends(get_db)):
-    """Get cache statistics"""
-    return {
-        "cache": cache_manager.stats(),
-        "faq_patterns": len(FAQ_RESPONSES),
-        "estimated_savings": {
-            "faq_responses_saved": db.query(Metric).filter(Metric.metric_name == "websocket_chat").count() // 5,
-            "estimated_llm_calls_avoided": db.query(Metric).filter(Metric.metric_name == "websocket_chat").count() // 10
-        }
-    }
+async def cache_stats(db: Session = Depends(get_db)):
+    return {"cache": cache_manager.stats(), "faq_patterns": len(FAQ_RESPONSES)}
 
 @app.post("/feedback")
-def submit_feedback(
-    rating: int = Field(ge=1, le=5),
-    comment: Optional[str] = None,
-    user_id: Optional[int] = None,
-    db: Session = Depends(get_db)
-):
+def submit_feedback(req: FeedbackReq, db: Session = Depends(get_db)):
     """Submit user feedback"""
-    log_metric(db, "user_feedback", rating, {"comment": comment, "user_id": user_id})
+    log_metric(db, "user_feedback", req.rating, {"comment": req.comment, "user_id": req.user_id})
     
     return {
         "message": "Спасибо за отзыв!",
-        "rating": rating,
+        "rating": req.rating,
         "status": "received"
     }
 
 @app.get("/stats/dashboard")
-def dashboard_stats(db: Session = Depends(get_db)):
-    """Complete dashboard statistics"""
-    total_goals = db.query(Goal).count()
-    total_amount = db.query(Goal).with_entities(
-        db.func.sum(Goal.target_amount)
-    ).scalar() or 0
-    
-    avg_monthly = db.query(Goal).with_entities(
-        db.func.avg(Goal.monthly_needed)
-    ).scalar() or 0
-    
+async def dashboard_stats(db: Session = Depends(get_db)):
+    total_goals = db.query(func.count(Goal.id)).scalar() or 0
+    total_amount = db.query(func.sum(Goal.target_amount)).scalar() or 0
+    avg_monthly = db.query(func.avg(Goal.monthly_needed)).scalar() or 0
+    recent_goals_q = db.query(Goal).order_by(Goal.created_at.desc()).limit(5).all()
+    recent_goals = [{"id": g.id, "name": g.name, "amount": g.target_amount, "progress": round((g.current_savings / g.target_amount) * 100, 1) if g.target_amount else 0, "created": g.created_at.strftime("%Y-%m-%d")} for g in recent_goals_q]
     return {
-        "overview": {
-            "total_goals": total_goals,
-            "total_target_amount": round(total_amount, 2),
-            "avg_monthly_savings": round(avg_monthly, 2),
-            "active_users": db.query(User).count()
-        },
-        "recent_goals": [
-            {
-                "id": g.id,
-                "name": g.name,
-                "amount": g.target_amount,
-                "progress": round((g.current_savings / g.target_amount) * 100, 1),
-                "created": g.created_at.strftime("%Y-%m-%d")
-            }
-            for g in db.query(Goal).order_by(Goal.created_at.desc()).limit(5)
-        ],
-        "system_health": {
-            "api_calls_today": db.query(Metric).filter(
-                Metric.timestamp >= datetime.utcnow().replace(hour=0, minute=0, second=0)
-            ).count(),
-            "avg_response_time_ms": round(
-                db.query(Metric).filter(Metric.metric_name == "llm_latency_ms")
-                .order_by(Metric.timestamp.desc())
-                .limit(50)
-                .with_entities(db.func.avg(Metric.value))
-                .scalar() or 0, 2
-            ),
-            "cache_hit_rate": 0.34,
-            "websocket_connections": len(manager.active_connections)
-        }
+        "overview": {"total_goals": total_goals, "total_target_amount": round(float(total_amount or 0), 2), "avg_monthly_savings": round(float(avg_monthly or 0), 2), "active_users": db.query(func.count(User.id)).scalar() or 0},
+        "recent_goals": recent_goals,
+        "system_health": {"api_calls_today": db.query(Metric).filter(Metric.timestamp >= datetime.utcnow().replace(hour=0, minute=0, second=0)).count(), "avg_response_time_ms": round(db.query(func.avg(Metric.value)).filter(Metric.metric_name == "llm_latency_ms").scalar() or 0, 2), "cache_hit_rate": 0.34, "websocket_connections": len(manager.active_connections)}
     }
 
 @app.get("/metrics")
-def get_metrics(db: Session = Depends(get_db)):
-    """Get system metrics and KPIs"""
-    total_goals = db.query(Goal).count()
-    active_goals = db.query(Goal).filter(Goal.status == "active").count()
-    total_conversations = db.query(ConversationLog).count()
-    
-    recent_latencies = db.query(Metric).filter(
-        Metric.metric_name == "llm_latency_ms"
-    ).order_by(Metric.timestamp.desc()).limit(100).all()
-    
+async def get_metrics(db: Session = Depends(get_db)):
+    total_goals = db.query(func.count(Goal.id)).scalar() or 0
+    active_goals = db.query(func.count(Goal.id)).filter(Goal.status == "active").scalar() or 0
+    total_conversations = db.query(func.count(ConversationLog.id)).scalar() or 0
+    recent_latencies = db.query(Metric).filter(Metric.metric_name == "llm_latency_ms").order_by(Metric.timestamp.desc()).limit(100).all()
     avg_latency = sum(m.value for m in recent_latencies) / len(recent_latencies) if recent_latencies else 0
-    
-    return {
-        "system_health": {
-            "status": "healthy",
-            "uptime_hours": 24,
-            "mock_mode": MOCK_MODE
-        },
-        "usage_stats": {
-            "total_goals_created": total_goals,
-            "active_goals": active_goals,
-            "total_conversations": total_conversations,
-            "faq_responses_given": db.query(ConversationLog).filter(
-                ConversationLog.latency_ms == 0
-            ).count()
-        },
-        "performance": {
-            "avg_llm_latency_ms": round(avg_latency, 2),
-            "p95_latency_ms": round(avg_latency * 1.5, 2),
-            "success_rate": 0.98,
-            "cache_entries": cache_manager.stats()["total_entries"]
-        },
-        "business_kpis": {
-            "conversion_to_product": 0.23,
-            "user_retention_7d": 0.67,
-            "avg_session_length_min": 8.5,
-            "nps_score": 72
-        },
-        "websocket_stats": {
-            "active_connections": len(manager.active_connections),
-            "total_ws_messages": db.query(Metric).filter(
-                Metric.metric_name == "websocket_chat"
-            ).count()
-        }
-    }
+    return {"system_health": {"status": "healthy", "uptime_hours": 24, "mock_mode": MOCK_MODE}, "usage_stats": {"total_goals_created": total_goals, "active_goals": active_goals, "total_conversations": total_conversations}, "performance": {"avg_llm_latency_ms": round(avg_latency, 2), "p95_latency_ms": round(avg_latency * 1.5, 2), "success_rate": 0.98, "cache_entries": cache_manager.stats()["total_entries"]}, "business_kpis": {"conversion_to_product": 0.23, "user_retention_7d": 0.67, "avg_session_length_min": 8.5, "nps_score": 72}, "websocket_stats": {"active_connections": len(manager.active_connections)}}
 
 @app.get("/admin/logs")
-def get_logs(limit: int = 50, db: Session = Depends(get_db)):
-    """Get recent conversation logs"""
-    logs = db.query(ConversationLog).order_by(
-        ConversationLog.timestamp.desc()
-    ).limit(limit).all()
-    
-    return {
-        "logs": [
-            {
-                "id": log.id,
-                "user_id": log.user_id,
-                "role": log.role,
-                "content": log.content[:100] + "..." if len(log.content) > 100 else log.content,
-                "timestamp": log.timestamp.isoformat(),
-                "latency_ms": log.latency_ms
-            }
-            for log in logs
-        ]
-    }
+async def get_logs(limit: int = 50, db: Session = Depends(get_db), x_admin_token: Optional[str] = Header(None)):
+    if ADMIN_TOKEN and x_admin_token != ADMIN_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    logs = db.query(ConversationLog).order_by(ConversationLog.timestamp.desc()).limit(limit).all()
+    return {"logs": [{"id": log.id, "user_id": log.user_id, "role": log.role, "content": (log.content[:100] + "...") if len(log.content) > 100 else log.content, "timestamp": log.timestamp.isoformat(), "latency_ms": log.latency_ms} for log in logs]}
 
 @app.delete("/admin/reset_db")
-def reset_database(confirm: str, db: Session = Depends(get_db)):
-    """Reset database (for testing only)"""
+async def reset_database(confirm: str = "", db: Session = Depends(get_db), x_admin_token: Optional[str] = Header(None)):
+    if ADMIN_TOKEN and x_admin_token != ADMIN_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
     if confirm != "yes_i_am_sure":
-        raise HTTPException(400, "Must confirm with 'yes_i_am_sure'")
-    
+        raise HTTPException(status_code=400, detail="Must confirm with 'yes_i_am_sure'")
     db.query(Goal).delete()
     db.query(ConversationLog).delete()
     db.query(Metric).delete()
     db.query(User).delete()
     db.commit()
-    
-    cache_manager.cache.clear()
-    
+    await cache_manager.clear_namespace("chat")
     return {"message": "Database and cache reset successful"}
 
-@app.on_event("startup")
-async def show_startup_info():
-    print("=" * 70)
-    print("🚀 ZAMAN ASSISTANT BACKEND v2.1.0 - PRODUCTION READY")
-    print("=" * 70)
-    print(f"📊 Mode: {'MOCK (Demo)' if MOCK_MODE else 'PRODUCTION (Live API)'}")
-    print(f"💾 Database: {DATABASE_URL}")
-    print(f"📦 Products loaded: {len(PRODUCTS)}")
-    print(f"🧠 Embeddings ready: {len(PRODUCT_EMBEDDINGS)}")
-    print(f"❓ FAQ patterns loaded: {len(FAQ_RESPONSES)}")
-    print(f"💾 Cache TTL: {cache_manager.ttl}s")
-    print("\n🌐 ENDPOINTS:")
-    print("   REST:      POST /chat, POST /create_goal, GET /goals, POST /recommend")
-    print("   WEBSOCKET: ws://localhost:8000/ws/chat/{user_id} ⭐ NEW!")
-    print("   ADMIN:     GET /health, GET /metrics, GET /admin/logs")
-    print("   CACHE:     GET /cache/stats ⭐ NEW!")
-    print(f"\n📖 API Docs: http://localhost:8000/docs")
-    print("=" * 70)
-    print("✅ Backend ready for requests!")
-    print("=" * 70)
-
-if _name_ == "_main_":
+# -------------------------
+# Run
+# -------------------------
+if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)), reload=True)
