@@ -1,0 +1,93 @@
+version: '3.8'
+
+# ===== DOCKER COMPOSE FOR TESTING =====
+# Изолированное окружение для запуска тестов
+# Использование: docker-compose -f docker-compose.test.yml up
+
+services:
+  # ===== TEST BACKEND =====
+  backend-test:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile
+    container_name: zaman-backend-test
+    
+    environment:
+      # Тестовые настройки
+      - DATABASE_URL=postgresql://test_user:test_pass@postgres-test:5432/test_db
+      - MOCK_MODE=true
+      - DEBUG=true
+      - CACHE_TTL_SECONDS=60
+      - RATE_LIMIT_MAX_REQUESTS=1000
+      - EMBEDDINGS_PATH=/app/data/test_embeddings.pkl
+    
+    volumes:
+      - ./backend:/app/backend:ro
+      - test-data:/app/data
+      - test-logs:/app/logs
+    
+    ports:
+      - "8001:8000"  # Отдельный порт для тестов
+    
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    
+    command: >
+      bash -c "
+      cd backend &&
+      python database.py &&
+      pytest tests/ -v --cov=. --cov-report=html --cov-report=term
+      "
+    
+    networks:
+      - test-network
+  
+  # ===== TEST DATABASE =====
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: zaman-postgres-test
+    
+    environment:
+      - POSTGRES_DB=test_db
+      - POSTGRES_USER=test_user
+      - POSTGRES_PASSWORD=test_pass
+    
+    volumes:
+      - test-db-data:/var/lib/postgresql/data
+    
+    ports:
+      - "5433:5432"  # Отдельный порт
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    
+    networks:
+      - test-network
+  
+  # ===== REDIS FOR TESTS (Optional) =====
+  redis-test:
+    image: redis:7-alpine
+    container_name: zaman-redis-test
+    
+    command: redis-server --maxmemory 64mb
+    
+    ports:
+      - "6380:6379"
+    
+    networks:
+      - test-network
+
+# ===== TEST VOLUMES =====
+volumes:
+  test-db-data:
+  test-data:
+  test-logs:
+
+# ===== TEST NETWORK =====
+networks:
+  test-network:
+    driver: bridge
