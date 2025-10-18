@@ -100,7 +100,7 @@ def validate_config():
     
     # Критичные проверки
     if not settings.OPENAI_HUB_KEY and not settings.MOCK_MODE:
-        errors.append("❌ OPENAI_HUB_KEY not set and MOCK_MODE is disabled!")
+        warnings.append("⚠️ OPENAI_HUB_KEY not set, but continuing (hackathon mode)")
     
     if not settings.ADMIN_TOKEN:
         errors.append("❌ ADMIN_TOKEN is not set!")

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Plus, Menu, X, MessageCircle, Upload, Mic, TrendingUp, Target, Award, Zap, ArrowRight, ChevronDown } from 'lucide-react';
+import { Send, Plus, Menu, X, MessageCircle, Upload, TrendingUp, Target, Award, Zap } from 'lucide-react';
 
-// ===== API CLIENT =====
 class ZamanAPI {
   constructor() {
     this.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -12,102 +11,55 @@ class ZamanAPI {
       const response = await fetch(`${this.baseURL}/health`);
       return await response.json();
     } catch (err) {
-      console.error('Health check failed:', err);
       return null;
     }
   }
 
   async createGoal(data) {
-    try {
-      const response = await fetch(`${this.baseURL}/goals/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      return await response.json();
-    } catch (err) {
-      throw new Error(err.message);
-    }
+    const response = await fetch(`${this.baseURL}/goals/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return await response.json();
   }
 
   async getGoals(userId) {
-    try {
-      const url = userId 
-        ? `${this.baseURL}/goals?user_id=${userId}` 
-        : `${this.baseURL}/goals`;
-      const response = await fetch(url);
-      return await response.json();
-    } catch (err) {
-      console.error('Failed to load goals:', err);
-      return { goals: [] };
-    }
+    const response = await fetch(`${this.baseURL}/goals${userId ? `?user_id=${userId}` : ''}`);
+    return await response.json();
   }
 
   async updateGoal(goalId, data) {
-    try {
-      const response = await fetch(`${this.baseURL}/goals/${goalId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      return await response.json();
-    } catch (err) {
-      throw new Error(err.message);
-    }
+    const response = await fetch(`${this.baseURL}/goals/${goalId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return await response.json();
   }
 
   async chat(messages, userId) {
-    try {
-      const response = await fetch(`${this.baseURL}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, user_id: userId })
-      });
-      return await response.json();
-    } catch (err) {
-      throw new Error(err.message);
-    }
+    const response = await fetch(`${this.baseURL}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages, user_id: userId })
+    });
+    return await response.json();
   }
 
   async analyzeExpenses(file, userId, income) {
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('user_id', userId);
-      formData.append('monthly_income', income);
-      
-      const response = await fetch(`${this.baseURL}/analyze_expenses`, {
-        method: 'POST',
-        body: formData
-      });
-      return await response.json();
-    } catch (err) {
-      throw new Error(err.message);
-    }
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('user_id', userId);
+    formData.append('monthly_income', income);
+    const response = await fetch(`${this.baseURL}/analyze_expenses`, {
+      method: 'POST',
+      body: formData
+    });
+    return await response.json();
   }
 }
 
-// ===== FLOATING PARTICLES BACKGROUND =====
-function ParticlesBackground() {
-  return (
-    <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-30">
-      {[...Array(20)].map((_, i) => (
-        <div
-          key={i}
-          className="absolute w-2 h-2 bg-gradient-to-r from-teal-400 to-cyan-400 rounded-full animate-float"
-          style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 5}s`,
-            animationDuration: `${5 + Math.random() * 10}s`
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ===== MAIN APP =====
 export default function App() {
   const [view, setView] = useState('dashboard');
   const [userId] = useState(1);
@@ -131,7 +83,7 @@ export default function App() {
 
   const checkHealth = async () => {
     const data = await api.current.health();
-    if (data) setHealth(data);
+    setHealth(data);
   };
 
   const loadGoals = async () => {
@@ -144,12 +96,9 @@ export default function App() {
   const handleCreateGoal = async (goalData) => {
     setLoading(true);
     try {
-      const result = await api.current.createGoal({
-        ...goalData,
-        user_id: userId
-      });
+      const result = await api.current.createGoal({ ...goalData, user_id: userId });
       setGoals([...goals, result]);
-      alert('✅ Цель создана с AI-советами!');
+      alert('✅ Цель создана!');
       setView('dashboard');
     } catch (err) {
       alert('❌ Ошибка: ' + err.message);
@@ -160,9 +109,7 @@ export default function App() {
 
   const handleUpdateGoal = async (goalId, savings) => {
     try {
-      const result = await api.current.updateGoal(goalId, { 
-        current_savings: savings 
-      });
+      const result = await api.current.updateGoal(goalId, { current_savings: savings });
       setGoals(goals.map(g => g.id === goalId ? result.goal : g));
     } catch (err) {
       alert('❌ Ошибка: ' + err.message);
@@ -170,501 +117,243 @@ export default function App() {
   };
 
   const handleSendMessage = async (message) => {
-    const newMessages = [...chatMessages, { role: 'user', content: message }];
-    setChatMessages(newMessages);
-    setLoading(true);
+  const userMessage = { role: 'user', content: message };
+  const updatedMessages = [...chatMessages, userMessage];
+  setChatMessages(updatedMessages);
+  setLoading(true);
 
-    try {
-      const response = await api.current.chat(newMessages, userId);
-      setChatMessages([...newMessages, { role: 'assistant', content: response.reply }]);
-    } catch (err) {
-      setChatMessages([...newMessages, { role: 'assistant', content: '❌ Ошибка подключения' }]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    // Отправляем только последнее сообщение пользователя
+    const response = await api.current.chat([userMessage], userId);
+
+    // Добавляем только новый ответ от ассистента
+    setChatMessages(prev => [...prev, { role: 'assistant', content: response.reply }]);
+  } catch (err) {
+    console.error("Chat error:", err);
+    setChatMessages(prev => [
+      ...prev,
+      { role: 'assistant', content: '❌ Ошибка при получении ответа' }
+    ]);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const navItems = [
     { id: 'dashboard', label: 'Дашборд', icon: TrendingUp },
     { id: 'goals', label: 'Цели', icon: Target },
-    { id: 'chat', label: 'AI Чат', icon: MessageCircle },
+    { id: 'chat', label: 'Чат', icon: MessageCircle },
     { id: 'products', label: 'Продукты', icon: Award },
     { id: 'analyze', label: 'Анализ', icon: Zap }
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-teal-900 to-cyan-900 relative overflow-hidden">
-      <ParticlesBackground />
-      
+    <div style={{ minHeight: '100vh', background: '#ffffff' }}>
       {/* Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/10 border-b border-white/20 shadow-2xl">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-4">
-            <div className="grid grid-cols-[auto_auto] items-center gap-4 group">
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-teal-400 to-cyan-400 rounded-2xl blur-lg opacity-75 group-hover:opacity-100 transition-opacity" />
-                <div className="relative w-14 h-14 bg-gradient-to-br from-teal-400 via-cyan-500 to-blue-600 rounded-2xl grid place-items-center shadow-2xl transform group-hover:scale-110 transition-transform">
-                  <span className="text-white font-black text-2xl">Z</span>
-                </div>
+      <header style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+        borderBottom: '2px solid #2D9A86',
+        background: 'white',
+        boxShadow: '0 2px 8px rgba(45, 154, 134, 0.1)'
+      }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '1.2rem 1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: '2rem' }}>
+            {/* Logo */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                background: '#2D9A86',
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontWeight: 'bold',
+                fontSize: '24px',
+                boxShadow: '0 4px 12px rgba(45, 154, 134, 0.3)'
+              }}>
+                Z
               </div>
               <div>
-                <h1 className="text-3xl font-black bg-gradient-to-r from-teal-200 via-cyan-200 to-blue-200 bg-clip-text text-transparent">
-                  Zaman
-                </h1>
-                <p className="text-xs text-teal-200/80">AI-Powered Finance</p>
+                <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#2D9A86', margin: 0, letterSpacing: '0.5px' }}>ZAMAN</h1>
+                <p style={{ fontSize: '11px', color: '#9ca3af', margin: 0, fontWeight: '500' }}>Financial Assistant</p>
               </div>
             </div>
 
-            <nav className="hidden md:grid grid-flow-col gap-2 justify-center">
+            {/* Nav Desktop */}
+            <nav style={{ display: 'grid', gap: '1rem', gridAutoFlow: 'column', justifyContent: 'center' }}>
               {navItems.map(item => {
                 const Icon = item.icon;
                 return (
                   <button
                     key={item.id}
                     onClick={() => setView(item.id)}
-                    className={`group relative px-5 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${
-                      view === item.id
-                        ? 'text-white'
-                        : 'text-teal-200/70 hover:text-white'
-                    }`}
+                    style={{
+                      padding: '0.6rem 1.2rem',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      border: 'none',
+                      background: view === item.id ? '#2D9A86' : '#f0f9f7',
+                      color: view === item.id ? 'white' : '#2D9A86',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.6rem',
+                      transition: 'all 0.2s',
+                      '@media (max-width: 768px)': { display: 'none' }
+                    }}
+                    onMouseOver={e => {
+                      if (view !== item.id) {
+                        e.target.style.background = '#e8f5f1';
+                        e.target.style.color = '#2D9A86';
+                      }
+                    }}
+                    onMouseOut={e => {
+                      if (view !== item.id) {
+                        e.target.style.background = '#f0f9f7';
+                      }
+                    }}
                   >
-                    {view === item.id && (
-                      <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-xl shadow-lg shadow-teal-500/50" />
-                    )}
-                    <div className="relative grid grid-flow-col gap-2 items-center">
-                      <Icon size={18} />
-                      <span>{item.label}</span>
-                    </div>
+                    <Icon size={18} />
+                    <span>{item.label}</span>
                   </button>
                 );
               })}
             </nav>
 
-            <button
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="md:hidden p-3 text-white hover:bg-white/10 rounded-xl transition-all"
-            >
+            {/* Menu Button Mobile */}
+            <button onClick={() => setMenuOpen(!menuOpen)} style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '0.5rem',
+              color: '#2D9A86',
+              display: 'none'
+            }}>
               {menuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
           </div>
         </div>
 
+        {/* Mobile Menu */}
         {menuOpen && (
-          <div className="md:hidden backdrop-blur-xl bg-white/10 border-t border-white/20 p-4">
-            <div className="grid gap-2">
-              {navItems.map(item => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      setView(item.id);
-                      setMenuOpen(false);
-                    }}
-                    className={`w-full grid grid-cols-[auto_1fr] items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                      view === item.id
-                        ? 'bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-lg'
-                        : 'text-teal-200 hover:bg-white/10'
-                    }`}
-                  >
-                    <Icon size={20} />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+          <div style={{
+            borderTop: '2px solid #f0f9f7',
+            background: '#f9fdfb',
+            padding: '1rem',
+            display: 'grid',
+            gap: '0.5rem'
+          }}>
+            {navItems.map(item => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => { setView(item.id); setMenuOpen(false); }}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    border: 'none',
+                    background: view === item.id ? '#2D9A86' : '#f0f9f7',
+                    color: view === item.id ? 'white' : '#2D9A86',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Icon size={18} />
+                  {item.label}
+                </button>
+              );
+            })}
           </div>
         )}
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      {/* Main */}
+      <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '2.5rem 1.5rem' }}>
         {view === 'dashboard' && <DashboardView goals={goals} health={health} />}
         {view === 'goals' && <GoalsView goals={goals} onCreateGoal={handleCreateGoal} onUpdateGoal={handleUpdateGoal} loading={loading} />}
         {view === 'chat' && <ChatView messages={chatMessages} onSendMessage={handleSendMessage} loading={loading} chatEndRef={chatEndRef} />}
         {view === 'products' && <ProductsView />}
         {view === 'analyze' && <AnalyzeView userId={userId} />}
       </main>
-
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) translateX(0px); }
-          25% { transform: translateY(-20px) translateX(10px); }
-          50% { transform: translateY(0px) translateX(20px); }
-          75% { transform: translateY(20px) translateX(10px); }
-        }
-        
-        @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-        
-        .animate-fadeIn {
-          animation: fadeIn 0.6s ease-out forwards;
-        }
-        
-        .animate-slideUp {
-          animation: slideUp 0.4s ease-out forwards;
-        }
-        
-        .animate-float {
-          animation: float linear infinite;
-        }
-        
-        .animate-shimmer {
-          animation: shimmer 2s infinite;
-        }
-      `}</style>
     </div>
   );
 }
 
-// ===== DASHBOARD VIEW =====
-function DashboardView({ goals, health }) {
-  const activeGoals = goals.filter(g => g.status === 'active');
-  const totalSaved = activeGoals.reduce((sum, g) => sum + (g.current_savings || 0), 0);
-  const totalTarget = activeGoals.reduce((sum, g) => sum + (g.target_amount || 0), 0);
-  const progress = totalTarget > 0 ? (totalSaved / totalTarget) * 100 : 0;
-
-  const stats = [
-    { 
-      label: 'Активных целей', 
-      value: activeGoals.length, 
-      icon: Target,
-      color: 'from-purple-500 to-pink-600',
-      bgGlow: 'shadow-purple-500/50'
-    },
-    { 
-      label: 'Накоплено', 
-      value: `${(totalSaved / 1000000).toFixed(1)}M ₸`, 
-      icon: TrendingUp,
-      color: 'from-teal-500 to-cyan-600',
-      bgGlow: 'shadow-teal-500/50'
-    },
-    { 
-      label: 'Целевая сумма', 
-      value: `${(totalTarget / 1000000).toFixed(1)}M ₸`, 
-      icon: Award,
-      color: 'from-orange-500 to-red-600',
-      bgGlow: 'shadow-orange-500/50'
-    },
-    { 
-      label: 'API Status', 
-      value: health?.status === 'healthy' ? '🟢 Online' : '🔴 Offline', 
-      icon: Zap,
-      color: 'from-green-500 to-emerald-600',
-      bgGlow: 'shadow-green-500/50'
-    }
+function ProductsView() {
+  const products = [
+    { name: 'Выгодный', type: 'Депозит', yield: 17, min: 500000, desc: '17% годовых, 3-12 мес' },
+    { name: 'Овернайт', type: 'Депозит', yield: 12, min: 1000000, desc: '12% годовых, 1-12 мес' },
+    { name: 'Беззалоговый кредит', type: 'Кредит', yield: null, min: 100000, desc: 'До 10M ₸, 3-60 мес' },
+    { name: 'Бизнес карта', type: 'Карта', yield: null, min: 100000, desc: 'Лимит до 10M ₸' }
   ];
 
   return (
-    <div className="space-y-8 animate-fadeIn">
-      {/* Hero Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, idx) => {
-          const Icon = stat.icon;
-          return (
-            <div 
-              key={idx} 
-              className="group relative"
-              style={{ animationDelay: `${idx * 100}ms` }}
-            >
-              <div className={`absolute inset-0 bg-gradient-to-r ${stat.color} rounded-3xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity ${stat.bgGlow}`} />
-              <div className="relative backdrop-blur-xl bg-white/10 rounded-3xl p-6 border border-white/20 hover:border-white/40 transition-all transform hover:-translate-y-2 hover:shadow-2xl">
-                <div className="grid grid-cols-[auto_auto] justify-between items-start mb-4">
-                  <div className={`p-3 bg-gradient-to-r ${stat.color} rounded-2xl shadow-lg`}>
-                    <Icon className="text-white" size={24} />
-                  </div>
-                  <ChevronDown className="text-white/50 group-hover:text-white transition-colors" size={20} />
-                </div>
-                <p className="text-white/70 text-sm font-medium mb-2">{stat.label}</p>
-                <p className="text-3xl font-black text-white">{stat.value}</p>
+    <div>
+      <h1 style={{ fontSize: '36px', fontWeight: 'bold', color: '#111827', marginBottom: '0.5rem' }}>Банковские продукты</h1>
+      <p style={{ fontSize: '16px', color: '#6b7280', marginBottom: '2.5rem' }}>Выбирайте лучшие решения для ваших целей</p>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+        {products.map((product, idx) => (
+          <div key={idx} style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '1.8rem',
+            border: '1px solid #e5e7eb',
+            boxShadow: '0 2px 8px rgba(45, 154, 134, 0.08)',
+            transition: 'all 0.2s'
+          }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#111827', marginBottom: '0.5rem' }}>{product.name}</h3>
+            <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '1rem' }}>{product.type}</p>
+            
+            {product.yield && (
+              <div style={{
+                background: '#f0f9f7',
+                padding: '1rem',
+                borderRadius: '8px',
+                marginBottom: '1rem',
+                border: '1px solid #d1e5e0'
+              }}>
+                <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '0.3rem' }}>Доходность</p>
+                <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#2D9A86', margin: 0 }}>{product.yield}%</p>
               </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Progress Overview */}
-      <div className="relative group">
-        <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-3xl blur-2xl opacity-30 group-hover:opacity-50 transition-opacity" />
-        <div className="relative backdrop-blur-xl bg-white/10 rounded-3xl p-8 border border-white/20 hover:border-white/40 transition-all">
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] items-center gap-6 mb-6">
-            <div>
-              <h2 className="text-2xl font-black text-white mb-2">Общий прогресс</h2>
-              <p className="text-teal-200/80">Ваш путь к финансовой свободе</p>
-            </div>
-            <div className="text-right">
-              <p className="text-5xl font-black bg-gradient-to-r from-teal-200 to-cyan-200 bg-clip-text text-transparent">
-                {progress.toFixed(0)}%
-              </p>
-            </div>
-          </div>
-          
-          <div className="relative h-6 bg-white/10 rounded-full overflow-hidden">
-            <div 
-              className="absolute inset-y-0 left-0 bg-gradient-to-r from-teal-400 via-cyan-500 to-blue-600 rounded-full shadow-lg shadow-teal-500/50 transition-all duration-1000 ease-out"
-              style={{ width: `${progress}%` }}
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/30 to-white/0 animate-shimmer" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Goals Grid */}
-      <div className="relative group">
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-600 rounded-3xl blur-2xl opacity-20 group-hover:opacity-40 transition-opacity" />
-        <div className="relative backdrop-blur-xl bg-white/10 rounded-3xl p-8 border border-white/20 hover:border-white/40 transition-all">
-          <h2 className="text-2xl font-black text-white mb-6 grid grid-flow-col gap-3 justify-start items-center">
-            <Target className="text-teal-400" />
-            <span>Активные цели</span>
-          </h2>
-          
-          {activeGoals.length === 0 ? (
-            <div className="text-center py-12">
-              <Target className="mx-auto mb-4 text-white/30" size={64} />
-              <p className="text-white/70 text-lg">Цели не созданы</p>
-              <p className="text-white/50 text-sm mt-2">Начните свой путь к мечте!</p>
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-2 gap-6">
-              {activeGoals.slice(0, 6).map((goal, idx) => (
-                <div 
-                  key={goal.id} 
-                  className="group/goal relative"
-                  style={{ animationDelay: `${idx * 50}ms` }}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-2xl blur-lg opacity-0 group-hover/goal:opacity-50 transition-opacity" />
-                  <div className="relative backdrop-blur-xl bg-white/5 rounded-2xl p-6 border border-white/10 hover:border-white/30 transition-all transform hover:scale-105">
-                    <div className="grid grid-cols-[1fr_auto] items-start gap-4 mb-4">
-                      <h4 className="font-bold text-white text-lg">{goal.name}</h4>
-                      <span className="px-3 py-1 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-full text-xs font-bold text-white shadow-lg">
-                        {goal.progress_percent}%
-                      </span>
-                    </div>
-                    
-                    <div className="relative h-3 bg-white/10 rounded-full overflow-hidden mb-4">
-                      <div 
-                        className="absolute inset-y-0 left-0 bg-gradient-to-r from-teal-400 to-cyan-500 rounded-full transition-all duration-500"
-                        style={{ width: `${goal.progress_percent}%` }}
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-3 items-center gap-2 text-sm">
-                      <span className="text-white/70">{(goal.current_savings / 1000000).toFixed(2)}M ₸</span>
-                      <ArrowRight className="text-teal-400 justify-self-center" size={16} />
-                      <span className="text-teal-200 font-bold justify-self-end">{(goal.target_amount / 1000000).toFixed(2)}M ₸</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ===== GOALS VIEW =====
-function GoalsView({ goals, onCreateGoal, onUpdateGoal, loading }) {
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    name: '', target_amount: '', current_savings: '', target_date: '',
-    income: '', expenses: '', goal_type: ''
-  });
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    await onCreateGoal({
-      ...form,
-      target_amount: parseFloat(form.target_amount),
-      current_savings: parseFloat(form.current_savings) || 0,
-      income: form.income ? parseFloat(form.income) : undefined,
-      expenses: form.expenses ? parseFloat(form.expenses) : undefined
-    });
-    setShowForm(false);
-    setForm({ name: '', target_amount: '', current_savings: '', target_date: '', income: '', expenses: '', goal_type: '' });
-  };
-
-  return (
-    <div className="space-y-6 animate-fadeIn">
-      <div className="grid grid-cols-[1fr_auto] items-center gap-4">
-        <h1 className="text-4xl font-black text-white">Мои цели</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="group relative px-8 py-4 rounded-2xl font-bold text-white overflow-hidden"
-        >
-          <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-cyan-600 transition-transform group-hover:scale-105" />
-          <div className="absolute inset-0 bg-gradient-to-r from-teal-400 to-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-          <span className="relative grid grid-flow-col gap-2 items-center">
-            <Plus size={24} />
-            <span>Создать цель</span>
-          </span>
-        </button>
-      </div>
-
-      {showForm && (
-        <div className="relative group">
-          <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-600 rounded-3xl blur-2xl opacity-30" />
-          <div className="relative backdrop-blur-xl bg-white/10 rounded-3xl p-8 border border-white/20">
-            <h2 className="text-2xl font-black text-white mb-6">✨ Новая цель</h2>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                <input 
-                  type="text" 
-                  placeholder="Название цели" 
-                  value={form.name} 
-                  onChange={(e) => setForm({...form, name: e.target.value})} 
-                  className="px-5 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-teal-400 focus:outline-none transition-all" 
-                  required 
-                />
-                <input 
-                  type="number" 
-                  placeholder="Целевая сумма (₸)" 
-                  value={form.target_amount} 
-                  onChange={(e) => setForm({...form, target_amount: e.target.value})} 
-                  className="px-5 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-teal-400 focus:outline-none transition-all" 
-                  required 
-                />
-                <input 
-                  type="number" 
-                  placeholder="Текущие накопления" 
-                  value={form.current_savings} 
-                  onChange={(e) => setForm({...form, current_savings: e.target.value})} 
-                  className="px-5 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-teal-400 focus:outline-none transition-all" 
-                />
-                <input 
-                  type="date" 
-                  value={form.target_date} 
-                  onChange={(e) => setForm({...form, target_date: e.target.value})} 
-                  className="px-5 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl text-white focus:border-teal-400 focus:outline-none transition-all" 
-                  required 
-                />
-                <input 
-                  type="number" 
-                  placeholder="Доход/месяц" 
-                  value={form.income} 
-                  onChange={(e) => setForm({...form, income: e.target.value})} 
-                  className="px-5 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-teal-400 focus:outline-none transition-all" 
-                />
-                <input 
-                  type="number" 
-                  placeholder="Расходы/месяц" 
-                  value={form.expenses} 
-                  onChange={(e) => setForm({...form, expenses: e.target.value})} 
-                  className="px-5 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-teal-400 focus:outline-none transition-all" 
-                />
-              </div>
-              <select 
-                value={form.goal_type} 
-                onChange={(e) => setForm({...form, goal_type: e.target.value})} 
-                className="w-full px-5 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl text-white focus:border-teal-400 focus:outline-none transition-all"
-              >
-                <option value="">Выберите тип цели</option>
-                <option value="образование">📚 Образование</option>
-                <option value="авто">🚗 Автомобиль</option>
-                <option value="путешествие">✈️ Путешествие</option>
-                <option value="жилье">🏠 Жилье</option>
-                <option value="здоровье">💊 Здоровье</option>
-              </select>
-              <div className="grid md:grid-cols-2 gap-4">
-                <button 
-                  type="submit" 
-                  disabled={loading} 
-                  className="relative group px-8 py-4 rounded-2xl font-bold text-white overflow-hidden disabled:opacity-50"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-cyan-600" />
-                  <span className="relative">
-                    {loading ? 'Создание...' : '✨ Создать цель'}
-                  </span>
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setShowForm(false)} 
-                  className="px-8 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl text-white font-bold hover:bg-white/20 transition-all"
-                >
-                  Отмена
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {goals.filter(g => g.status === 'active').map((goal, idx) => (
-          <div 
-            key={goal.id} 
-            className="group relative"
-            style={{ animationDelay: `${idx * 100}ms` }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-3xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity" />
-            <div className="relative backdrop-blur-xl bg-white/10 rounded-3xl p-6 border border-white/20 hover:border-white/40 transition-all transform hover:-translate-y-2">
-              <h3 className="text-xl font-black text-white mb-2">{goal.name}</h3>
-              <p className="text-sm text-teal-200/80 mb-4">🗓️ {new Date(goal.target_date).toLocaleDateString('ru-RU')}</p>
-              
-              <div className="mb-4">
-                <div className="grid grid-cols-[1fr_auto] gap-2 text-sm mb-2">
-                  <span className="text-white/70 font-medium">Прогресс</span>
-                  <span className="text-teal-300 font-black">{goal.progress_percent}%</span>
-                </div>
-                <div className="relative h-4 bg-white/10 rounded-full overflow-hidden">
-                  <div 
-                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-teal-400 to-cyan-500 rounded-full shadow-lg transition-all duration-500"
-                    style={{ width: `${goal.progress_percent}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="backdrop-blur-xl bg-white/5 rounded-2xl p-3">
-                  <p className="text-white/70 text-xs mb-1">Накоплено</p>
-                  <p className="text-lg font-black text-white">{(goal.current_savings / 1000000).toFixed(2)}M</p>
-                </div>
-                <div className="backdrop-blur-xl bg-white/5 rounded-2xl p-3">
-                  <p className="text-white/70 text-xs mb-1">Цель</p>
-                  <p className="text-lg font-black text-teal-300">{(goal.target_amount / 1000000).toFixed(2)}M</p>
-                </div>
-              </div>
-
-              <div className="grid grid-flow-col gap-2 items-center justify-start mb-4 px-3 py-2 bg-gradient-to-r from-teal-500/20 to-cyan-600/20 rounded-xl">
-                <Zap className="text-teal-400" size={16} />
-                <p className="text-sm text-teal-200 font-bold">
-                  {(goal.monthly_needed / 1000).toFixed(0)}K ₸/месяц
-                </p>
-              </div>
-
-              <div className="grid grid-cols-[1fr_auto] gap-2">
-                <input 
-                  type="number" 
-                  placeholder="Обновить сумму" 
-                  defaultValue={goal.current_savings} 
-                  id={`savings-${goal.id}`} 
-                  className="px-4 py-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-teal-400 focus:outline-none transition-all text-sm" 
-                />
-                <button 
-                  onClick={() => { 
-                    const input = document.getElementById(`savings-${goal.id}`); 
-                    onUpdateGoal(goal.id, parseFloat(input.value)); 
-                  }} 
-                  className="px-5 py-3 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-xl text-white font-bold hover:shadow-lg hover:shadow-teal-500/50 transition-all"
-                >
-                  ✓
-                </button>
-              </div>
-            </div>
+            )}
+            
+            <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '1rem' }}>{product.desc}</p>
+            <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '1.5rem', fontWeight: '500' }}>От {(product.min / 1000).toFixed(0)}K ₸</p>
+            
+            <button style={{
+              width: '100%',
+              padding: '0.85rem',
+              background: '#2D9A86',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              fontSize: '14px',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={e => {
+              e.target.style.background = '#258170';
+            }}
+            onMouseOut={e => {
+              e.target.style.background = '#2D9A86';
+            }}>
+              Подробнее →
+            </button>
           </div>
         ))}
       </div>
@@ -672,246 +361,6 @@ function GoalsView({ goals, onCreateGoal, onUpdateGoal, loading }) {
   );
 }
 
-// ===== CHAT VIEW =====
-function ChatView({ messages, onSendMessage, loading, chatEndRef }) {
-  const [input, setInput] = useState('');
-  const [isListening, setIsListening] = useState(false);
-
-  const handleSend = () => {
-    if (input.trim()) {
-      onSendMessage(input);
-      setInput('');
-    }
-  };
-
-  const handleVoiceInput = () => {
-    if (!('webkitSpeechRecognition' in window)) {
-      alert('Ваш браузер не поддерживает голосовой ввод. Используйте Chrome или Edge.');
-      return;
-    }
-
-    const recognition = new window.webkitSpeechRecognition();
-    recognition.language = 'ru-RU';
-    recognition.continuous = false;
-
-    recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => setIsListening(false);
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setInput(transcript);
-    };
-
-    recognition.start();
-  };
-
-  return (
-    <div className="relative group animate-fadeIn">
-      <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-600 rounded-3xl blur-2xl opacity-30" />
-      <div className="relative h-[700px] grid grid-rows-[auto_1fr_auto] backdrop-blur-xl bg-white/10 rounded-3xl border border-white/20 overflow-hidden shadow-2xl">
-        {/* Chat Header */}
-        <div className="px-6 py-4 border-b border-white/20 bg-gradient-to-r from-teal-500/20 to-cyan-600/20">
-          <div className="grid grid-cols-[auto_1fr] gap-3 items-center">
-            <div className="w-12 h-12 bg-gradient-to-r from-teal-400 to-cyan-500 rounded-2xl grid place-items-center">
-              <MessageCircle className="text-white" size={24} />
-            </div>
-            <div>
-              <h3 className="text-white font-black text-lg">AI Ассистент</h3>
-              <p className="text-teal-200 text-xs">Всегда на связи</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Messages Area */}
-        <div className="overflow-y-auto p-6 space-y-4">
-          {messages.length === 0 ? (
-            <div className="grid place-items-center h-full text-center">
-              <div>
-                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-r from-teal-400 to-cyan-500 rounded-3xl grid place-items-center animate-pulse">
-                  <MessageCircle size={40} className="text-white" />
-                </div>
-                <h4 className="text-white font-bold text-xl mb-2">Начните разговор</h4>
-                <p className="text-white/70">Спросите о целях, финансах или получите совет</p>
-              </div>
-            </div>
-          ) : (
-            messages.map((msg, idx) => (
-              <div 
-                key={idx} 
-                className={`grid ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-slideUp`}
-                style={{ animationDelay: `${idx * 50}ms` }}
-              >
-                <div className={`group relative max-w-xs md:max-w-md ${
-                  msg.role === 'user' ? '' : 'grid grid-cols-[auto_1fr] items-start gap-3'
-                }`}>
-                  {msg.role === 'assistant' && (
-                    <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-pink-500 rounded-2xl grid place-items-center flex-shrink-0">
-                      <Zap className="text-white" size={20} />
-                    </div>
-                  )}
-                  <div className={`px-5 py-4 rounded-2xl ${
-                    msg.role === 'user'
-                      ? 'bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-lg shadow-teal-500/50'
-                      : 'backdrop-blur-xl bg-white/10 text-white border border-white/20'
-                  }`}>
-                    {msg.content}
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-          {loading && (
-            <div className="grid justify-start animate-slideUp">
-              <div className="grid grid-cols-[auto_1fr] items-start gap-3">
-                <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-pink-500 rounded-2xl grid place-items-center animate-pulse">
-                  <Zap className="text-white" size={20} />
-                </div>
-                <div className="backdrop-blur-xl bg-white/10 px-5 py-4 rounded-2xl border border-white/20">
-                  <div className="grid grid-flow-col gap-2 w-fit">
-                    <div className="w-3 h-3 bg-teal-400 rounded-full animate-bounce" />
-                    <div className="w-3 h-3 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                    <div className="w-3 h-3 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          <div ref={chatEndRef} />
-        </div>
-
-        {/* Input Area */}
-        <div className="p-4 border-t border-white/20 bg-gradient-to-r from-teal-500/10 to-cyan-600/10">
-          <div className="grid grid-cols-[1fr_auto_auto] gap-3">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Напишите сообщение..."
-              className="px-5 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-teal-400 focus:outline-none transition-all"
-            />
-            <button 
-              onClick={handleVoiceInput} 
-              disabled={isListening} 
-              className={`px-5 py-4 rounded-2xl transition-all ${
-                isListening 
-                  ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white animate-pulse' 
-                  : 'backdrop-blur-xl bg-white/10 text-white border border-white/20 hover:bg-white/20'
-              }`}
-            >
-              <Mic size={24} />
-            </button>
-            <button 
-              onClick={handleSend} 
-              disabled={loading || !input.trim()} 
-              className="group relative px-6 py-4 rounded-2xl font-bold text-white overflow-hidden disabled:opacity-50"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-cyan-600 transition-transform group-hover:scale-105" />
-              <Send size={24} className="relative" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ===== PRODUCTS VIEW =====
-function ProductsView() {
-  const products = [
-    { 
-      id: 1, 
-      name: 'Выгодный', 
-      type: 'Депозит', 
-      yield: 17, 
-      min: 500000, 
-      desc: '17% годовых, 3-12 месяцев',
-      color: 'from-teal-500 to-cyan-600',
-      icon: TrendingUp
-    },
-    { 
-      id: 2, 
-      name: 'Овернайт', 
-      type: 'Депозит', 
-      yield: 12, 
-      min: 1000000, 
-      desc: '12% годовых, 1-12 месяцев',
-      color: 'from-purple-500 to-pink-600',
-      icon: Award
-    },
-    { 
-      id: 3, 
-      name: 'Беззалоговый кредит', 
-      type: 'Кредит', 
-      yield: null, 
-      min: 100000, 
-      desc: 'До 10M ₸, 3-60 месяцев',
-      color: 'from-orange-500 to-red-600',
-      icon: Zap
-    },
-    { 
-      id: 4, 
-      name: 'Бизнес карта', 
-      type: 'Карта', 
-      yield: null, 
-      min: 100000, 
-      desc: 'До 10M ₸ лимит, кэшбэк до 1%',
-      color: 'from-green-500 to-emerald-600',
-      icon: Target
-    }
-  ];
-
-  return (
-    <div className="space-y-6 animate-fadeIn">
-      <div className="text-center mb-12">
-        <h1 className="text-5xl font-black text-white mb-4">Банковские продукты</h1>
-        <p className="text-xl text-teal-200">Выбирайте лучшие решения для ваших целей</p>
-      </div>
-
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {products.map((product, idx) => {
-          const Icon = product.icon;
-          return (
-            <div 
-              key={product.id} 
-              className="group relative"
-              style={{ animationDelay: `${idx * 100}ms` }}
-            >
-              <div className={`absolute inset-0 bg-gradient-to-r ${product.color} rounded-3xl blur-2xl opacity-40 group-hover:opacity-70 transition-opacity`} />
-              <div className="relative backdrop-blur-xl bg-white/10 rounded-3xl p-6 border border-white/20 hover:border-white/40 transition-all transform hover:-translate-y-2 hover:shadow-2xl">
-                <div className={`w-16 h-16 bg-gradient-to-r ${product.color} rounded-2xl grid place-items-center mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
-                  <Icon className="text-white" size={32} />
-                </div>
-                
-                <h3 className="text-2xl font-black text-white mb-2">{product.name}</h3>
-                <p className="text-sm text-teal-200/80 mb-4">{product.type}</p>
-                
-                {product.yield && (
-                  <div className={`mb-4 p-4 bg-gradient-to-r ${product.color} bg-opacity-20 rounded-2xl border border-white/20`}>
-                    <p className="text-xs text-white/70 mb-1">Доходность</p>
-                    <p className="text-4xl font-black text-white">{product.yield}%</p>
-                  </div>
-                )}
-                
-                <p className="text-sm text-white/80 mb-4">{product.desc}</p>
-                <p className="text-xs text-teal-300 font-bold mb-6">от {(product.min / 1000).toFixed(0)}K ₸</p>
-                
-                <button className="w-full group/btn relative px-6 py-3 rounded-2xl font-bold text-white overflow-hidden">
-                  <div className={`absolute inset-0 bg-gradient-to-r ${product.color} transition-transform group-hover/btn:scale-105`} />
-                  <span className="relative grid grid-flow-col gap-2 items-center justify-center">
-                    <span>Подробнее</span>
-                    <ArrowRight size={20} />
-                  </span>
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ===== ANALYZE VIEW =====
 function AnalyzeView({ userId }) {
   const [file, setFile] = useState(null);
   const [income, setIncome] = useState('');
@@ -937,145 +386,708 @@ function AnalyzeView({ userId }) {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fadeIn">
-      <div className="text-center mb-8">
-        <h1 className="text-5xl font-black text-white mb-4">Анализ расходов</h1>
-        <p className="text-xl text-teal-200">AI-powered финансовая аналитика</p>
-      </div>
+    <div>
+      <h1 style={{ fontSize: '36px', fontWeight: 'bold', color: '#111827', marginBottom: '0.5rem' }}>Анализ расходов</h1>
+      <p style={{ fontSize: '16px', color: '#6b7280', marginBottom: '2.5rem' }}>AI-powered финансовая аналитика</p>
 
-      <div className="relative group">
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-600 rounded-3xl blur-2xl opacity-30" />
-        <div className="relative backdrop-blur-xl bg-white/10 rounded-3xl p-8 border border-white/20">
-          <div className="space-y-6">
-            <div>
-              <label className="text-white font-bold mb-4 grid grid-flow-col gap-2 w-fit items-center">
-                <Upload className="text-teal-400" />
-                <span>Загрузите CSV с транзакциями</span>
-              </label>
-              <div className="relative group/upload cursor-pointer">
-                <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-2xl blur-xl opacity-0 group-hover/upload:opacity-50 transition-opacity" />
-                <div className="relative backdrop-blur-xl bg-white/5 border-2 border-dashed border-white/30 rounded-2xl p-8 text-center hover:border-teal-400 transition-all">
-                  <Upload size={48} className="text-teal-400 mx-auto mb-4 group-hover/upload:scale-110 transition-transform" />
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={(e) => setFile(e.target.files?.[0])}
-                    className="hidden"
-                    id="csv-upload"
-                  />
-                  <label htmlFor="csv-upload" className="cursor-pointer block">
-                    <p className="text-white font-bold text-lg mb-2">
-                      {file ? `📄 ${file.name}` : 'Выберите CSV файл'}
-                    </p>
-                    <p className="text-white/50 text-sm">или перетащите файл сюда</p>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-white font-bold mb-4">
-                💰 Месячный доход (₸)
-              </label>
+      <div style={{
+        background: 'white',
+        borderRadius: '12px',
+        padding: '2rem',
+        border: '1px solid #e5e7eb',
+        boxShadow: '0 2px 8px rgba(45, 154, 134, 0.08)'
+      }}>
+        <div style={{ display: 'grid', gap: '1.5rem' }}>
+          <div>
+            <label style={{ fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '0.75rem', display: 'block' }}>
+              📄 Загрузите CSV с транзакциями
+            </label>
+            <div style={{
+              border: '2px dashed #d1e5e0',
+              borderRadius: '8px',
+              padding: '2rem',
+              textAlign: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              background: '#f9fdfb'
+            }}
+            onMouseOver={e => {
+              e.currentTarget.style.borderColor = '#2D9A86';
+              e.currentTarget.style.background = '#f0f9f7';
+            }}
+            onMouseOut={e => {
+              e.currentTarget.style.borderColor = '#d1e5e0';
+              e.currentTarget.style.background = '#f9fdfb';
+            }}>
+              <Upload size={40} style={{ color: '#2D9A86', marginBottom: '0.75rem', display: 'block', margin: '0 auto 0.75rem' }} />
               <input
-                type="number"
-                value={income}
-                onChange={(e) => setIncome(e.target.value)}
-                placeholder="500000"
-                className="w-full px-6 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl text-white text-lg placeholder-white/50 focus:border-teal-400 focus:outline-none transition-all"
+                type="file"
+                accept=".csv"
+                onChange={(e) => setFile(e.target.files?.[0])}
+                style={{ display: 'none' }}
+                id="csv-upload"
               />
+              <label htmlFor="csv-upload" style={{ cursor: 'pointer', display: 'block' }}>
+                <p style={{ fontSize: '15px', fontWeight: '600', color: '#111827', margin: '0 0 0.3rem 0' }}>
+                  {file ? `📄 ${file.name}` : 'Выберите CSV файл'}
+                </p>
+                <p style={{ fontSize: '13px', color: '#9ca3af', margin: 0 }}>или перетащите файл сюда</p>
+              </label>
             </div>
-
-            <button
-              onClick={handleAnalyze}
-              disabled={loading}
-              className="w-full group/btn relative px-8 py-5 rounded-2xl font-black text-xl text-white overflow-hidden disabled:opacity-50"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-cyan-600 transition-transform group-hover/btn:scale-105" />
-              <span className="relative grid grid-flow-col gap-3 items-center justify-center">
-                {loading ? (
-                  <>
-                    <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Анализирую...</span>
-                  </>
-                ) : (
-                  <>
-                    <Zap size={28} />
-                    <span>Анализировать расходы</span>
-                  </>
-                )}
-              </span>
-            </button>
           </div>
 
-          {result && (
-            <div className="mt-8 pt-8 border-t border-white/20 space-y-6 animate-slideUp">
-              <h2 className="text-3xl font-black text-white mb-6 grid grid-flow-col gap-3 w-fit items-center">
-                <TrendingUp className="text-teal-400" />
-                <span>Результаты анализа</span>
-              </h2>
-              
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="backdrop-blur-xl bg-white/5 rounded-2xl p-6 border border-white/20">
-                  <p className="text-white/70 text-sm mb-2">Всего расходов</p>
-                  <p className="text-4xl font-black text-white">{(result.total_spending / 1000000).toFixed(2)}M ₸</p>
-                </div>
-                <div className="backdrop-blur-xl bg-white/5 rounded-2xl p-6 border border-white/20">
-                  <p className="text-white/70 text-sm mb-2">Транзакций</p>
-                  <p className="text-4xl font-black text-teal-300">{result.total_transactions}</p>
+          <div>
+            <label style={{ fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '0.5rem', display: 'block' }}>
+              💰 Месячный доход (₸)
+            </label>
+            <input
+              type="number"
+              value={income}
+              onChange={(e) => setIncome(e.target.value)}
+              placeholder="500000"
+              style={{
+                width: '100%',
+                padding: '0.85rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontFamily: 'inherit'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#2D9A86';
+                e.target.style.boxShadow = '0 0 0 3px rgba(45, 154, 134, 0.1)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = '#d1d5db';
+                e.target.style.boxShadow = 'none';
+              }}
+            />
+          </div>
+
+          <button
+            onClick={handleAnalyze}
+            disabled={loading}
+            style={{
+              padding: '0.95rem',
+              background: '#2D9A86',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: '600',
+              fontSize: '15px',
+              cursor: 'pointer',
+              opacity: loading ? 0.5 : 1,
+              transition: 'all 0.2s'
+            }}
+          >
+            {loading ? 'Анализирую...' : 'Анализировать расходы'}
+          </button>
+        </div>
+
+        {result && (
+          <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid #e5e7eb' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#111827', marginBottom: '1.5rem' }}>Результаты анализа</h2>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div style={{ background: '#f9fdfb', padding: '1rem', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 0.5rem 0' }}>Всего расходов</p>
+                <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#2D9A86', margin: 0 }}>{(result.total_spending / 1000000).toFixed(2)}M ₸</p>
+              </div>
+              <div style={{ background: '#f9fdfb', padding: '1rem', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 0.5rem 0' }}>Транзакций</p>
+                <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#2D9A86', margin: 0 }}>{result.total_transactions}</p>
+              </div>
+            </div>
+            
+            {result.categories && (
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#111827', marginBottom: '1rem' }}>📊 Категории расходов</h3>
+                <div style={{ display: 'grid', gap: '0.75rem' }}>
+                  {result.categories.map((cat, idx) => (
+                    <div key={idx} style={{
+                      background: '#f9fdfb',
+                      padding: '1rem',
+                      borderRadius: '8px',
+                      border: '1px solid #e5e7eb'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>{cat.category}</span>
+                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#2D9A86' }}>{cat.pct}%</span>
+                      </div>
+                      <div style={{
+                        height: '6px',
+                        background: '#e5e7eb',
+                        borderRadius: '999px',
+                        overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          height: '100%',
+                          background: '#2D9A86',
+                          width: `${cat.pct}%`,
+                          transition: 'width 0.3s'
+                        }} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-              
-              {result.categories && (
-                <div>
-                  <h3 className="text-xl font-black text-white mb-4">📊 Категории расходов</h3>
-                  <div className="space-y-3">
-                    {result.categories.map((cat, idx) => (
-                      <div 
-                        key={idx} 
-                        className="backdrop-blur-xl bg-white/5 rounded-2xl p-4 border border-white/20"
-                        style={{ animationDelay: `${idx * 100}ms` }}
-                      >
-                        <div className="grid grid-cols-[1fr_auto] items-center gap-4 mb-3">
-                          <span className="text-white font-bold">{cat.category}</span>
-                          <span className="text-teal-300 font-black text-lg">{cat.pct}%</span>
-                        </div>
-                        <div className="relative h-3 bg-white/10 rounded-full overflow-hidden">
-                          <div
-                            className="absolute inset-y-0 left-0 bg-gradient-to-r from-teal-400 via-cyan-500 to-blue-600 rounded-full shadow-lg transition-all duration-1000"
-                            style={{ width: `${cat.pct}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+            )}
 
-              {result.advice && (
-                <div className="backdrop-blur-xl bg-gradient-to-r from-teal-500/20 to-cyan-600/20 rounded-2xl p-6 border border-teal-400/30">
-                  <h3 className="text-xl font-black text-white mb-4 grid grid-flow-col gap-2 w-fit items-center">
-                    <Zap className="text-teal-400" />
-                    <span>AI Советы по экономии</span>
-                  </h3>
-                  <div className="space-y-3">
-                    {result.advice.map((tip, idx) => (
-                      <div 
-                        key={idx} 
-                        className="grid grid-cols-[auto_1fr] gap-3 text-white/90"
-                        style={{ animationDelay: `${idx * 50}ms` }}
-                      >
-                        <span className="text-teal-400 font-black text-lg">✓</span>
-                        <span>{tip}</span>
-                      </div>
-                    ))}
-                  </div>
+            {result.advice && (
+              <div style={{ marginTop: '1.5rem', background: '#f0f9f7', padding: '1rem', borderRadius: '8px', border: '1px solid #d1e5e0' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#111827', marginBottom: '1rem', margin: 0 }}>💡 AI Советы по экономии</h3>
+                <div style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
+                  {result.advice.map((tip, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: '0.75rem', fontSize: '13px', color: '#374151' }}>
+                      <span style={{ color: '#2D9A86', fontWeight: 'bold', flexShrink: 0 }}>✓</span>
+                      <span>{tip}</span>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DashboardView({ goals, health }) {
+  const activeGoals = goals.filter(g => g.status === 'active');
+  const totalSaved = activeGoals.reduce((sum, g) => sum + (g.current_savings || 0), 0);
+  const totalTarget = activeGoals.reduce((sum, g) => sum + (g.target_amount || 0), 0);
+  const progress = totalTarget > 0 ? (totalSaved / totalTarget) * 100 : 0;
+
+  return (
+    <div>
+      <h1 style={{ fontSize: '36px', fontWeight: 'bold', color: '#111827', marginBottom: '2.5rem', letterSpacing: '-0.5px' }}>Дашборд</h1>
+
+      {/* Stats Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem', marginBottom: '2.5rem' }}>
+        <StatCard label="Активных целей" value={activeGoals.length} icon="🎯" color="#2D9A86" />
+        <StatCard label="Накоплено" value={`${(totalSaved / 1000000).toFixed(1)}M ₸`} icon="💰" color="#EEFF6D" />
+        <StatCard label="Целевая сумма" value={`${(totalTarget / 1000000).toFixed(1)}M ₸`} icon="🎪" color="#2D9A86" />
+        <StatCard label="Статус" value={health?.status === 'healthy' ? '🟢 Online' : '🔴 Offline'} icon="📡" color="#2D9A86" />
+      </div>
+
+      {/* Progress Bar */}
+      <div style={{
+        background: 'white',
+        borderRadius: '12px',
+        padding: '2rem',
+        border: '1px solid #e5e7eb',
+        marginBottom: '2.5rem',
+        boxShadow: '0 2px 8px rgba(45, 154, 134, 0.08)'
+      }}>
+        <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '1.5rem', color: '#111827' }}>Общий прогресс</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+          <span style={{ fontSize: '14px', color: '#6b7280' }}>Прогресс накоплений</span>
+          <span style={{ fontSize: '28px', fontWeight: 'bold', color: '#2D9A86' }}>{progress.toFixed(0)}%</span>
+        </div>
+        <div style={{
+          height: '16px',
+          background: '#f0f9f7',
+          borderRadius: '999px',
+          overflow: 'hidden',
+          border: '1px solid #e5e7eb'
+        }}>
+          <div style={{
+            height: '100%',
+            background: '#2D9A86',
+            width: `${progress}%`,
+            transition: 'width 0.5s ease'
+          }} />
         </div>
       </div>
+
+      {/* Goals */}
+      <div style={{
+        background: 'white',
+        borderRadius: '12px',
+        padding: '2rem',
+        border: '1px solid #e5e7eb',
+        boxShadow: '0 2px 8px rgba(45, 154, 134, 0.08)'
+      }}>
+        <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '1.5rem', color: '#111827' }}>Активные цели</h2>
+        {activeGoals.length === 0 ? (
+          <p style={{ color: '#9ca3af', textAlign: 'center', padding: '3rem 0', fontSize: '15px' }}>Нет активных целей. Создайте первую цель!</p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
+            {activeGoals.map(goal => (
+              <div key={goal.id} style={{
+                background: '#f9fdfb',
+                borderRadius: '10px',
+                padding: '1.5rem',
+                border: '1px solid #e5e7eb',
+                transition: 'all 0.2s'
+              }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '0.5rem', color: '#111827' }}>{goal.name}</h3>
+                <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '1rem' }}>Прогресс: {goal.progress_percent}%</p>
+                <div style={{
+                  height: '8px',
+                  background: '#e5e7eb',
+                  borderRadius: '999px',
+                  overflow: 'hidden',
+                  marginBottom: '1rem'
+                }}>
+                  <div style={{
+                    height: '100%',
+                    background: '#2D9A86',
+                    width: `${goal.progress_percent}%`,
+                    transition: 'width 0.3s'
+                  }} />
+                </div>
+                <p style={{ fontSize: '13px', color: '#6b7280' }}>{(goal.current_savings / 1000000).toFixed(2)}M / {(goal.target_amount / 1000000).toFixed(2)}M ₸</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value, icon, color }) {
+  return (
+    <div style={{
+      background: 'white',
+      borderRadius: '12px',
+      padding: '1.8rem',
+      border: '1px solid #e5e7eb',
+      boxShadow: '0 2px 8px rgba(45, 154, 134, 0.08)',
+      transition: 'all 0.2s',
+      cursor: 'pointer'
+    }}
+    onMouseOver={e => {
+      e.currentTarget.style.boxShadow = '0 8px 16px rgba(45, 154, 134, 0.15)';
+      e.currentTarget.style.transform = 'translateY(-2px)';
+    }}
+    onMouseOut={e => {
+      e.currentTarget.style.boxShadow = '0 2px 8px rgba(45, 154, 134, 0.08)';
+      e.currentTarget.style.transform = 'translateY(0)';
+    }}>
+      <div style={{ fontSize: '36px', marginBottom: '0.75rem' }}>{icon}</div>
+      <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '0.5rem', fontWeight: '500' }}>{label}</p>
+      <p style={{ fontSize: '26px', fontWeight: 'bold', color: color }}>{value}</p>
+    </div>
+  );
+}
+
+function GoalsView({ goals, onCreateGoal, onUpdateGoal, loading }) {
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
+    name: '', target_amount: '', current_savings: '', target_date: '',
+    income: '', expenses: '', goal_type: ''
+  });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await onCreateGoal({
+      ...form,
+      target_amount: parseFloat(form.target_amount),
+      current_savings: parseFloat(form.current_savings) || 0,
+      income: form.income ? parseFloat(form.income) : undefined,
+      expenses: form.expenses ? parseFloat(form.expenses) : undefined
+    });
+    setShowForm(false);
+    setForm({ name: '', target_amount: '', current_savings: '', target_date: '', income: '', expenses: '', goal_type: '' });
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
+        <h1 style={{ fontSize: '36px', fontWeight: 'bold', color: '#111827', margin: 0 }}>Мои цели</h1>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          style={{
+            padding: '0.85rem 1.8rem',
+            background: '#2D9A86',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.6rem',
+            transition: 'all 0.2s',
+            boxShadow: '0 4px 12px rgba(45, 154, 134, 0.3)'
+          }}
+          onMouseOver={e => {
+            e.currentTarget.style.background = '#258170';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(45, 154, 134, 0.4)';
+          }}
+          onMouseOut={e => {
+            e.currentTarget.style.background = '#2D9A86';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(45, 154, 134, 0.3)';
+          }}
+        >
+          <Plus size={18} />
+          Новая цель
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '2rem',
+          border: '1px solid #e5e7eb',
+          marginBottom: '2.5rem',
+          boxShadow: '0 2px 8px rgba(45, 154, 134, 0.08)'
+        }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '1.5rem', color: '#111827' }}>Создать новую цель</h2>
+          <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1.2rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.2rem' }}>
+              <FormField label="Название цели" type="text" value={form.name} onChange={(v) => setForm({...form, name: v})} placeholder="Например: Автомобиль" />
+              <FormField label="Целевая сумма (₸)" type="number" value={form.target_amount} onChange={(v) => setForm({...form, target_amount: v})} placeholder="1000000" />
+              <FormField label="Текущие накопления" type="number" value={form.current_savings} onChange={(v) => setForm({...form, current_savings: v})} placeholder="0" />
+              <FormField label="Дата достижения" type="date" value={form.target_date} onChange={(v) => setForm({...form, target_date: v})} />
+            </div>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+              <button type="submit" disabled={loading} style={{
+                flex: 1,
+                padding: '0.85rem',
+                background: '#2D9A86',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                fontSize: '14px',
+                transition: 'all 0.2s'
+              }}>
+                {loading ? 'Создание...' : 'Создать цель'}
+              </button>
+              <button type="button" onClick={() => setShowForm(false)} style={{
+                flex: 1,
+                padding: '0.85rem',
+                background: '#f0f9f7',
+                color: '#2D9A86',
+                border: '1px solid #d1e5e0',
+                borderRadius: '8px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}>
+                Отмена
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+        {goals.filter(g => g.status === 'active').map((goal) => (
+          <div key={goal.id} style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '1.8rem',
+            border: '1px solid #e5e7eb',
+            boxShadow: '0 2px 8px rgba(45, 154, 134, 0.08)',
+            transition: 'all 0.2s'
+          }}>
+            <h3 style={{ fontSize: '17px', fontWeight: 'bold', marginBottom: '0.5rem', color: '#111827' }}>{goal.name}</h3>
+            <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '1.2rem' }}>📅 {new Date(goal.target_date).toLocaleDateString('ru-RU')}</p>
+            <div style={{ marginBottom: '1.2rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+                <span style={{ fontSize: '13px', color: '#6b7280', fontWeight: '500' }}>Прогресс</span>
+                <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#2D9A86' }}>{goal.progress_percent}%</span>
+              </div>
+              <div style={{
+                height: '8px',
+                background: '#f0f9f7',
+                borderRadius: '999px',
+                overflow: 'hidden',
+                border: '1px solid #d1e5e0'
+              }}>
+                <div style={{
+                  height: '100%',
+                  background: '#2D9A86',
+                  width: `${goal.progress_percent}%`,
+                  transition: 'width 0.3s'
+                }} />
+              </div>
+            </div>
+            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '1.2rem', fontWeight: '500' }}>{(goal.current_savings / 1000000).toFixed(2)}M / {(goal.target_amount / 1000000).toFixed(2)}M ₸</p>
+            <div style={{ display: 'flex', gap: '0.6rem' }}>
+              <input type="number" defaultValue={goal.current_savings} id={`input-${goal.id}`} style={{
+                flex: 1,
+                padding: '0.7rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                fontSize: '13px',
+                fontFamily: 'inherit'
+              }} />
+              <button onClick={() => {
+                const val = parseFloat(document.getElementById(`input-${goal.id}`).value);
+                onUpdateGoal(goal.id, val);
+              }} style={{
+                padding: '0.7rem 1rem',
+                background: '#2D9A86',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: '600'
+              }}>✓</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FormField({ label, type, value, onChange, placeholder }) {
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '0.5rem' }}>{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: '100%',
+          padding: '0.75rem',
+          border: '1px solid #d1d5db',
+          borderRadius: '6px',
+          fontSize: '14px',
+          fontFamily: 'inherit',
+          transition: 'all 0.2s'
+        }}
+        onFocus={e => {
+          e.target.style.borderColor = '#2D9A86';
+          e.target.style.boxShadow = '0 0 0 3px rgba(45, 154, 134, 0.1)';
+        }}
+        onBlur={e => {
+          e.target.style.borderColor = '#d1d5db';
+          e.target.style.boxShadow = 'none';
+        }}
+      />
+    </div>
+  );
+}
+
+function ChatView({ messages, onSendMessage, loading, chatEndRef }) {
+  const [input, setInput] = useState('');
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
+
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+    if (!SpeechRecognition) {
+      recognitionRef.current = null;
+      return;
+    }
+
+    const recog = new SpeechRecognition();
+    recog.lang = 'ru-RU';
+    recog.interimResults = true;
+    recog.continuous = false;
+    recognitionRef.current = recog;
+
+    recog.onstart = () => setListening(true);
+    recog.onend = () => setListening(false);
+
+    recog.onresult = (event) => {
+      let interim = '';
+      let final = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const res = event.results[i];
+        if (res.isFinal) final += res[0].transcript;
+        else interim += res[0].transcript;
+      }
+
+      // Показываем промежуточный результат прямо в поле
+      if (interim) {
+        setInput(final + interim);
+      } else if (final) {
+        setInput(prev => (prev ? prev + ' ' + final.trim() : final.trim()));
+      }
+    };
+
+    recog.onerror = (e) => {
+      console.warn('SpeechRecognition error', e);
+      setListening(false);
+    };
+
+    return () => {
+      recog.onresult = null;
+      recog.onend = null;
+      recog.onerror = null;
+      recognitionRef.current = null;
+    };
+  }, []);
+
+  const toggleListening = () => {
+    const recog = recognitionRef.current;
+    if (!recog) {
+      alert('Распознавание речи не поддерживается в этом браузере.');
+      return;
+    }
+    if (listening) recog.stop();
+    else {
+      try {
+        recog.start();
+      } catch (err) {
+        console.warn('start error', err);
+      }
+    }
+  };
+
+  return (
+    <div style={{
+      height: '700px',
+      display: 'flex',
+      flexDirection: 'column',
+      background: 'white',
+      borderRadius: '12px',
+      border: '1px solid #e5e7eb',
+      overflow: 'hidden',
+      boxShadow: '0 2px 8px rgba(45, 154, 134, 0.08)'
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: '1.5rem',
+        borderBottom: '1px solid #e5e7eb',
+        background: '#f9fdfb'
+      }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#111827', margin: 0 }}>AI Ассистент 🤖</h3>
+        <p style={{ fontSize: '12px', color: '#9ca3af', margin: '0.3rem 0 0 0' }}>Всегда на связи для помощи</p>
+      </div>
+
+      {/* Messages */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: '1.5rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1rem',
+        background: '#ffffff'
+      }}>
+        {messages.length === 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '48px', marginBottom: '1rem' }}>💬</div>
+              <p style={{ fontSize: '15px', color: '#9ca3af', fontWeight: '500' }}>Начните разговор с ассистентом</p>
+              <p style={{ fontSize: '13px', color: '#d1d5db', marginTop: '0.5rem' }}>Задавайте вопросы о целях и финансах</p>
+            </div>
+          </div>
+        ) : (
+          messages.map((msg, idx) => (
+            <div key={idx} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              <div style={{
+                maxWidth: '70%',
+                padding: '0.85rem 1.2rem',
+                borderRadius: '10px',
+                background: msg.role === 'user' ? '#2D9A86' : '#f0f9f7',
+                color: msg.role === 'user' ? 'white' : '#111827',
+                fontSize: '14px',
+                lineHeight: '1.5',
+                fontWeight: msg.role === 'user' ? '500' : '400'
+              }}>
+                {msg.content}
+              </div>
+            </div>
+          ))
+        )}
+        {loading && (
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <div style={{ width: '10px', height: '10px', background: '#2D9A86', borderRadius: '50%', animation: 'bounce 1.4s infinite' }} />
+            <div style={{ width: '10px', height: '10px', background: '#2D9A86', borderRadius: '50%', animation: 'bounce 1.4s infinite 0.2s' }} />
+            <div style={{ width: '10px', height: '10px', background: '#2D9A86', borderRadius: '50%', animation: 'bounce 1.4s infinite 0.4s' }} />
+          </div>
+        )}
+        <div ref={chatEndRef} />
+      </div>
+
+      {/* Input */}
+      <div style={{
+        padding: '1rem',
+        borderTop: '1px solid #e5e7eb',
+        background: '#f9fdfb',
+        display: 'flex',
+        gap: '0.6rem',
+        alignItems: 'center'
+      }}>
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && input.trim() && (onSendMessage(input.trim()), setInput(''))}
+          placeholder="Напишите сообщение..."
+          style={{
+            flex: 1,
+            padding: '0.85rem',
+            border: '1px solid #d1d5db',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontFamily: 'inherit',
+            color: '#111827', // 🟢 Текст теперь всегда виден
+            transition: 'all 0.2s'
+          }}
+          onFocus={(e) => {
+            e.target.style.borderColor = '#2D9A86';
+            e.target.style.boxShadow = '0 0 0 3px rgba(45, 154, 134, 0.1)';
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = '#d1d5db';
+            e.target.style.boxShadow = 'none';
+          }}
+        />
+
+        <button
+          onClick={toggleListening}
+          title={recognitionRef.current ? (listening ? 'Остановить запись' : 'Начать запись') : 'Распознавание речи не поддерживается'}
+          style={{
+            padding: '0.6rem 0.9rem',
+            background: listening ? '#EE6B6B' : '#2D9A86',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}
+        >
+          {listening ? '● REC' : '🎙️'}
+        </button>
+
+        <button
+          onClick={() => { if (input.trim()) { onSendMessage(input.trim()); setInput(''); } }}
+          disabled={!input.trim() || loading}
+          style={{
+            padding: '0.85rem 1.5rem',
+            background: '#2D9A86',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            opacity: !input.trim() || loading ? 0.5 : 1,
+            transition: 'all 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}
+        >
+          <Send size={18} />
+        </button>
+      </div>
+
+      <style>{`
+        @keyframes bounce {
+          0%, 80%, 100% { transform: translateY(0); }
+          40% { transform: translateY(-10px); }
+        }
+      `}</style>
     </div>
   );
 }

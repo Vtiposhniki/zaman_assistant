@@ -1,11 +1,9 @@
 # main.py — Zaman Assistant Backend (Refactored v3.0)
-"""
-Основной файл приложения с минимальной логикой.
-Вся бизнес-логика вынесена в services, модели в database, промпты в prompts.
-"""
 import os
 import asyncio
 import logging
+import tempfile
+import io
 from datetime import datetime
 from typing import Optional
 
@@ -51,6 +49,7 @@ llm_client = LLMClient(
     mock_mode=settings.MOCK_MODE
 )
 rate_limiter = RateLimiter(max_requests=200, window_seconds=3600)
+whisper_service = None  # Инициализируется в startup
 
 # ===== FASTAPI APP =====
 app = FastAPI(
@@ -67,51 +66,10 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# ===== STARTUP EVENTS =====
-@app.on_event("startup")
-async def startup_event():
-    """Инициализация при запуске"""
-    logger.info("🚀 Starting Zaman Assistant v3.0")
-    
-    # Инициализация БД
-    init_db()
-    logger.info("✅ Database initialized")
-    
-    # Загрузка продуктов и embeddings (асинхронно)
-    from config import PRODUCTS
-    if PRODUCTS:
-        asyncio.create_task(build_index_from_products(PRODUCTS))
-        logger.info(f"📦 Loading embeddings for {len(PRODUCTS)} products...")
-    
-    # Запуск фоновых задач
-    asyncio.create_task(rate_limiter.cleanup_task())
-    asyncio.create_task(cache_manager.cleanup_task())
-    
-    # Инициализация Whisper
-    global whisper_service
-    whisper_service = WhisperService(
-        url=settings.OPENAI_HUB_URL,
-        api_key=settings.OPENAI_HUB_KEY,
-        mock_mode=settings.MOCK_MODE
-    )
-    logger.info("✅ Whisper service initialized")
-    
-    logger.info(f"🔧 MOCK_MODE: {settings.MOCK_MODE}")
-    logger.info(f"💾 Database: {settings.DATABASE_URL}")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Graceful shutdown"""
-    logger.info("🛑 Shutting down Zaman Assistant")
-    # Сохранение embeddings перед выключением
-    if EMB_INDEX.index:
-        EMB_INDEX.save()
-        logger.info("💾 Embeddings saved")
-
 # ===== WEBSOCKET CONNECTION MANAGER =====
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: list[WebSocket] = []
+        self.active_connections = []
         self.lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket):
@@ -135,6 +93,47 @@ class ConnectionManager:
                     logger.error(f"Broadcast error: {e}")
 
 manager = ConnectionManager()
+
+# ===== STARTUP & SHUTDOWN =====
+@app.on_event("startup")
+async def startup_event():
+    """Инициализация при запуске"""
+    global whisper_service
+    
+    logger.info("🚀 Starting Zaman Assistant v3.0")
+    
+    # Инициализация БД
+    init_db()
+    logger.info("✅ Database initialized")
+    
+    # Загрузка продуктов и embeddings
+    from config import PRODUCTS
+    if PRODUCTS:
+        asyncio.create_task(build_index_from_products(PRODUCTS, llm_client))
+        logger.info(f"📦 Loading embeddings for {len(PRODUCTS)} products...")
+    
+    # Запуск фоновых задач
+    asyncio.create_task(rate_limiter.cleanup_task())
+    asyncio.create_task(cache_manager.cleanup_task())
+    
+    # Инициализация Whisper
+    whisper_service = WhisperService(
+        url=settings.OPENAI_HUB_URL,
+        api_key=settings.OPENAI_HUB_KEY,
+        mock_mode=settings.MOCK_MODE
+    )
+    logger.info("✅ Whisper service initialized")
+    
+    logger.info(f"🔧 MOCK_MODE: {settings.MOCK_MODE}")
+    logger.info(f"💾 Database: {settings.DATABASE_URL}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Graceful shutdown"""
+    logger.info("🛑 Shutting down Zaman Assistant")
+    if EMB_INDEX.index:
+        EMB_INDEX.save()
+        logger.info("💾 Embeddings saved")
 
 # ===== DEPENDENCY INJECTION =====
 def get_services(db: Session = Depends(get_db)):
@@ -265,29 +264,23 @@ async def chat(
 async def websocket_chat(websocket: WebSocket, user_id: int):
     """WebSocket endpoint для real-time чата"""
     await manager.connect(websocket)
-    chat_service = ChatService(None, llm_client, cache_manager)  # без DB для WS
+    chat_service = ChatService(None, llm_client, cache_manager)
     
     try:
         while True:
-            # Получение сообщения
             message = await websocket.receive_json()
-            
-            # Обработка
-            response = await chat_service.process_websocket_message(
+            await chat_service.process_websocket_message(
                 message=message,
                 user_id=user_id,
                 websocket=websocket
             )
-            
-            # Отправка ответа (streaming уже внутри process_websocket_message)
-            
     except WebSocketDisconnect:
         await manager.disconnect(websocket)
     except Exception as e:
         logger.exception(f"WebSocket error: {e}")
         await manager.disconnect(websocket)
 
-# ===== RECOMMENDATIONS ENDPOINT =====
+# ===== RECOMMENDATIONS =====
 @app.post("/recommend")
 async def recommend_products(
     req: RecommendReq,
@@ -310,7 +303,7 @@ async def recommend_products(
         logger.exception("Recommendation failed")
         raise HTTPException(status_code=500, detail="Recommendation service error")
 
-# ===== PRODUCTS ENDPOINT =====
+# ===== PRODUCTS =====
 @app.get("/products")
 async def list_products(category: Optional[str] = None):
     """Список всех продуктов"""
@@ -328,7 +321,7 @@ async def list_products(category: Optional[str] = None):
         "categories": categories
     }
 
-# ===== ANALYTICS ENDPOINTS =====
+# ===== ANALYTICS =====
 @app.post("/analyze_expenses")
 async def analyze_expenses(
     file: UploadFile = File(...),
@@ -344,30 +337,238 @@ async def analyze_expenses(
         raise HTTPException(status_code=400, detail="Only CSV files are supported")
     
     try:
-        # Сохранение временного файла
-        import tempfile
         with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
             content = await file.read()
             tmp.write(content)
             tmp_path = tmp.name
         
-        # Анализ
         analysis = await services["analytics"].analyze_transactions(
             csv_path=tmp_path,
             user_id=user_id,
             monthly_income=monthly_income
         )
         
-        # Удаление временного файла
         os.unlink(tmp_path)
-        
         return analysis
         
     except Exception as e:
         logger.exception("Expense analysis failed")
         raise HTTPException(status_code=500, detail="Analysis service error")
 
-# ===== FEEDBACK ENDPOINT =====
+# ===== AUDIO ENDPOINTS =====
+@app.post("/audio/transcribe")
+async def transcribe_audio(
+    file: UploadFile = File(...),
+    language: Optional[str] = Query("ru"),
+    request: Request = None,
+    db: Session = Depends(get_db)
+):
+    """Транскрибирование аудио файла"""
+    await rate_limiter.check_limit(request.client.host)
+    
+    if not file.content_type.startswith("audio/"):
+        raise HTTPException(status_code=400, detail="Only audio files are supported")
+    
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = tmp.name
+        
+        transcription, latency = await whisper_service.transcribe(
+            file_path=tmp_path,
+            language=language
+        )
+        
+        os.unlink(tmp_path)
+        
+        if db:
+            metric = Metric(
+                metric_name="audio_transcribed",
+                value=float(len(transcription)),
+                metric_metadata={"language": language, "filename": file.filename}
+            )
+            db.add(metric)
+            db.commit()
+        
+        return {
+            "text": transcription,
+            "filename": file.filename,
+            "language": language,
+            "latency_ms": round(latency, 2),
+            "status": "success"
+        }
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Audio transcription failed")
+        raise HTTPException(status_code=500, detail="Transcription service error")
+
+@app.post("/audio/translate")
+async def translate_audio(
+    file: UploadFile = File(...),
+    request: Request = None,
+    db: Session = Depends(get_db)
+):
+    """Транскрибирование и перевод на английский"""
+    await rate_limiter.check_limit(request.client.host)
+    
+    if not file.content_type.startswith("audio/"):
+        raise HTTPException(status_code=400, detail="Only audio files are supported")
+    
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = tmp.name
+        
+        translation, latency = await whisper_service.translate(file_path=tmp_path)
+        os.unlink(tmp_path)
+        
+        if db:
+            metric = Metric(
+                metric_name="audio_translated",
+                value=float(len(translation)),
+                metric_metadata={"filename": file.filename}
+            )
+            db.add(metric)
+            db.commit()
+        
+        return {
+            "text": translation,
+            "filename": file.filename,
+            "latency_ms": round(latency, 2),
+            "status": "success"
+        }
+    
+    except Exception as e:
+        logger.exception("Audio translation failed")
+        raise HTTPException(status_code=500, detail="Translation service error")
+
+@app.post("/audio/message")
+async def audio_to_chat(
+    file: UploadFile = File(...),
+    user_id: Optional[int] = Query(None),
+    language: Optional[str] = Query("ru"),
+    request: Request = None,
+    db: Session = Depends(get_db)
+):
+    """Полный pipeline: аудио → транскрибирование → AI ответ"""
+    await rate_limiter.check_limit(request.client.host)
+    
+    if not file.content_type.startswith("audio/"):
+        raise HTTPException(status_code=400, detail="Only audio files are supported")
+    
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = tmp.name
+        
+        result = await process_audio_message(
+            audio_path=tmp_path,
+            whisper_service=whisper_service,
+            chat_service=ChatService(db, llm_client, cache_manager),
+            cache_manager=cache_manager,
+            user_id=user_id,
+            language=language
+        )
+        
+        os.unlink(tmp_path)
+        
+        if db:
+            log = ConversationLog(
+                user_id=user_id,
+                role="user",
+                content=result["transcription"]["text"],
+                latency_ms=result["transcription"]["latency_ms"]
+            )
+            db.add(log)
+            
+            log_response = ConversationLog(
+                user_id=user_id,
+                role="assistant",
+                content=result["response"]["text"],
+                latency_ms=result["response"]["latency_ms"]
+            )
+            db.add(log_response)
+            db.commit()
+        
+        return result
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Audio message processing failed")
+        raise HTTPException(status_code=500, detail="Audio processing service error")
+
+@app.websocket("/ws/audio/{user_id}")
+async def websocket_audio(websocket: WebSocket, user_id: int):
+    """WebSocket для real-time аудио обработки"""
+    await manager.connect(websocket)
+    
+    try:
+        audio_buffer = io.BytesIO()
+        
+        while True:
+            data = await websocket.receive_bytes()
+            
+            if not data:
+                continue
+            
+            audio_buffer.write(data)
+            
+            try:
+                message = await websocket.receive_json()
+                
+                if message.get("action") == "process":
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+                        tmp.write(audio_buffer.getvalue())
+                        tmp_path = tmp.name
+                    
+                    try:
+                        transcription, latency = await whisper_service.transcribe(
+                            file_path=tmp_path,
+                            language=message.get("language", "ru")
+                        )
+                        
+                        await websocket.send_json({
+                            "type": "transcription",
+                            "text": transcription,
+                            "latency_ms": round(latency, 2)
+                        })
+                        
+                        chat_response = await ChatService(
+                            None, llm_client, cache_manager
+                        ).process_message(
+                            messages=[{"role": "user", "content": transcription}],
+                            user_id=user_id
+                        )
+                        
+                        await websocket.send_json({
+                            "type": "response",
+                            "text": chat_response["reply"],
+                            "latency_ms": chat_response["latency_ms"]
+                        })
+                        
+                    finally:
+                        os.unlink(tmp_path)
+                    
+                    audio_buffer = io.BytesIO()
+            
+            except Exception as e:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": str(e)
+                })
+    
+    except Exception as e:
+        logger.exception(f"WebSocket audio error: {e}")
+    finally:
+        await manager.disconnect(websocket)
+
+# ===== FEEDBACK =====
 @app.post("/feedback")
 async def submit_feedback(
     req: FeedbackReq,
@@ -375,8 +576,6 @@ async def submit_feedback(
 ):
     """Отправка отзыва"""
     try:
-        from database import Metric
-        
         metric = Metric(
             metric_name="user_feedback",
             value=float(req.rating),
@@ -395,7 +594,7 @@ async def submit_feedback(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to save feedback")
 
-# ===== METRICS & STATS ENDPOINTS =====
+# ===== STATS & ADMIN =====
 @app.get("/stats/dashboard")
 async def dashboard_stats(db: Session = Depends(get_db)):
     """Статистика для дашборда"""
@@ -405,7 +604,6 @@ async def dashboard_stats(db: Session = Depends(get_db)):
         total_goals = db.query(func.count(Goal.id)).scalar() or 0
         total_amount = db.query(func.sum(Goal.target_amount)).scalar() or 0
         avg_monthly = db.query(func.avg(Goal.monthly_needed)).scalar() or 0
-        
         recent_goals = db.query(Goal).order_by(Goal.created_at.desc()).limit(5).all()
         
         return {
@@ -433,277 +631,12 @@ async def dashboard_stats(db: Session = Depends(get_db)):
     except Exception as e:
         logger.exception("Dashboard stats failed")
         raise HTTPException(status_code=500, detail="Failed to get statistics")
-# ===== ДОБАВИТЬ В main.py ПОСЛЕ ИМПОРТОВ =====
 
-from services.whisper_service import (
-    WhisperService,
-    WhisperCacheService,
-    process_audio_message
-)
-
-# ===== ИНИЦИАЛИЗАЦИЯ В STARTUP EVENT =====
-# Добавить в startup_event():
-
-whisper_service = WhisperService(
-    url=settings.OPENAI_HUB_URL,
-    api_key=settings.OPENAI_HUB_KEY,
-    mock_mode=settings.MOCK_MODE
-)
-
-# ===== ENDPOINTS (добавить перед @app.on_event("shutdown")) =====
-
-@app.post("/audio/transcribe")
-async def transcribe_audio(
-    file: UploadFile = File(...),
-    language: Optional[str] = Query("ru", description="Language code (ru, en, etc)"),
-    request: Request = None,
-    db: Session = Depends(get_db)
-):
-    """Транскрибирование аудио файла в текст"""
-    await rate_limiter.check_limit(request.client.host)
-    
-    if not file.content_type.startswith("audio/"):
-        raise HTTPException(status_code=400, detail="Only audio files are supported")
-    
-    try:
-        import tempfile
-        
-        # Сохранение временного файла
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
-            content = await file.read()
-            tmp.write(content)
-            tmp_path = tmp.name
-        
-        # Транскрибирование
-        transcription, latency = await whisper_service.transcribe(
-            file_path=tmp_path,
-            language=language
-        )
-        
-        # Удаление временного файла
-        os.unlink(tmp_path)
-        
-        # Логирование
-        if db:
-            metric = Metric(
-                metric_name="audio_transcribed",
-                value=float(len(transcription)),
-                metric_metadata={"language": language, "filename": file.filename}
-            )
-            db.add(metric)
-            db.commit()
-        
-        return {
-            "text": transcription,
-            "filename": file.filename,
-            "language": language,
-            "latency_ms": round(latency, 2),
-            "status": "success"
-        }
-    
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.exception("Audio transcription failed")
-        raise HTTPException(status_code=500, detail="Transcription service error")
-
-
-@app.post("/audio/translate")
-async def translate_audio(
-    file: UploadFile = File(...),
-    request: Request = None,
-    db: Session = Depends(get_db)
-):
-    """Транскрибирование и перевод на английский"""
-    await rate_limiter.check_limit(request.client.host)
-    
-    if not file.content_type.startswith("audio/"):
-        raise HTTPException(status_code=400, detail="Only audio files are supported")
-    
-    try:
-        import tempfile
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
-            content = await file.read()
-            tmp.write(content)
-            tmp_path = tmp.name
-        
-        # Перевод
-        translation, latency = await whisper_service.translate(file_path=tmp_path)
-        
-        os.unlink(tmp_path)
-        
-        if db:
-            metric = Metric(
-                metric_name="audio_translated",
-                value=float(len(translation)),
-                metric_metadata={"filename": file.filename}
-            )
-            db.add(metric)
-            db.commit()
-        
-        return {
-            "text": translation,
-            "filename": file.filename,
-            "latency_ms": round(latency, 2),
-            "status": "success"
-        }
-    
-    except Exception as e:
-        logger.exception("Audio translation failed")
-        raise HTTPException(status_code=500, detail="Translation service error")
-
-
-@app.post("/audio/message")
-async def audio_to_chat(
-    file: UploadFile = File(...),
-    user_id: Optional[int] = Query(None),
-    language: Optional[str] = Query("ru"),
-    request: Request = None,
-    db: Session = Depends(get_db)
-):
-    """
-    Полный pipeline: аудио → транскрибирование → AI ответ
-    Клиент говорит, система слушает и отвечает
-    """
-    await rate_limiter.check_limit(request.client.host)
-    
-    if not file.content_type.startswith("audio/"):
-        raise HTTPException(status_code=400, detail="Only audio files are supported")
-    
-    try:
-        import tempfile
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
-            content = await file.read()
-            tmp.write(content)
-            tmp_path = tmp.name
-        
-        # Полный pipeline
-        result = await process_audio_message(
-            audio_path=tmp_path,
-            whisper_service=whisper_service,
-            chat_service=ChatService(db, llm_client, cache_manager),
-            cache_manager=cache_manager,
-            user_id=user_id,
-            language=language
-        )
-        
-        os.unlink(tmp_path)
-        
-        # Логирование
-        if db:
-            log = ConversationLog(
-                user_id=user_id,
-                role="user",
-                content=result["transcription"]["text"],
-                latency_ms=result["transcription"]["latency_ms"]
-            )
-            db.add(log)
-            
-            log_response = ConversationLog(
-                user_id=user_id,
-                role="assistant",
-                content=result["response"]["text"],
-                latency_ms=result["response"]["latency_ms"]
-            )
-            db.add(log_response)
-            db.commit()
-        
-        return result
-    
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.exception("Audio message processing failed")
-        raise HTTPException(status_code=500, detail="Audio processing service error")
-
-
-@app.websocket("/ws/audio/{user_id}")
-async def websocket_audio(websocket: WebSocket, user_id: int):
-    """
-    WebSocket для real-time аудио обработки.
-    Клиент отправляет audio chunks, получает transcription + chat response.
-    """
-    await manager.connect(websocket)
-    
-    try:
-        import tempfile
-        import io
-        
-        audio_buffer = io.BytesIO()
-        
-        while True:
-            # Получение аудио chunk
-            data = await websocket.receive_bytes()
-            
-            if not data:
-                continue
-            
-            audio_buffer.write(data)
-            
-            # Если пришла команда "process"
-            try:
-                message = await websocket.receive_json()
-                
-                if message.get("action") == "process":
-                    # Сохранение и обработка
-                    import tempfile
-                    
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-                        tmp.write(audio_buffer.getvalue())
-                        tmp_path = tmp.name
-                    
-                    # Транскрибирование
-                    try:
-                        transcription, latency = await whisper_service.transcribe(
-                            file_path=tmp_path,
-                            language=message.get("language", "ru")
-                        )
-                        
-                        # Отправка транскрибирования
-                        await websocket.send_json({
-                            "type": "transcription",
-                            "text": transcription,
-                            "latency_ms": round(latency, 2)
-                        })
-                        
-                        # Чат обработка
-                        chat_response = await ChatService(
-                            None, llm_client, cache_manager
-                        ).process_message(
-                            messages=[{"role": "user", "content": transcription}],
-                            user_id=user_id
-                        )
-                        
-                        await websocket.send_json({
-                            "type": "response",
-                            "text": chat_response["reply"],
-                            "latency_ms": chat_response["latency_ms"]
-                        })
-                        
-                    finally:
-                        os.unlink(tmp_path)
-                    
-                    # Очистка буфера
-                    audio_buffer = io.BytesIO()
-            
-            except Exception as e:
-                await websocket.send_json({
-                    "type": "error",
-                    "message": str(e)
-                })
-    
-    except Exception as e:
-        logger.exception(f"WebSocket audio error: {e}")
-    finally:
-        await manager.disconnect(websocket)
 @app.get("/cache/stats")
 async def cache_stats():
     """Статистика кэша"""
-    return cache_manager.stats() 
+    return cache_manager.stats()
 
-# ===== ADMIN ENDPOINTS =====
 @app.get("/admin/logs")
 async def get_logs(
     limit: int = 50,

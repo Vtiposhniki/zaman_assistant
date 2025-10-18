@@ -7,6 +7,7 @@ starlette==0.48.0
 SQLAlchemy==2.0.44
 greenlet==3.2.4
 python-multipart==0.0.20
+psycopg2-binary==2.9.9  # ✅ PostgreSQL driver
 
 # ===== Validation =====
 pydantic==2.12.3
@@ -42,9 +43,25 @@ sniffio==1.3.1
 # ===== WebSocket Support =====
 websockets==12.0
 
-# ===== CORS =====
-# Уже включено в FastAPI
+# ===== 🔐 SECURITY (NEW) =====
+python-jose[cryptography]==3.3.0  # JWT tokens
+passlib[bcrypt]==1.7.4            # Password hashing
+bcrypt==4.2.1                     # Bcrypt for passlib
+cryptography==44.0.0              # Crypto primitives
 
-# ===== Optional: для production =====
-# gunicorn==21.2.0
-# redis==5.0.1
+# ===== 📊 MONITORING (Production) =====
+prometheus-client==0.22.0         # Prometheus metrics
+sentry-sdk[fastapi]==2.23.1       # Error tracking
+
+# ===== ⚡ PERFORMANCE (Production) =====
+redis==5.2.1                      # Redis cache
+aioredis==2.0.1                   # Async Redis
+
+# ===== 🧪 TESTING (Development) =====
+pytest==8.4.1
+pytest-asyncio==0.25.2
+pytest-cov==6.0.0
+httpx==0.28.1  # Already included above
+
+# ===== Production Server =====
+gunicorn==23.0.0                  # WSGI server (optional)
