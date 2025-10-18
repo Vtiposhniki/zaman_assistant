@@ -50,6 +50,11 @@ class Settings:
     
     # ===== WebSocket =====
     WS_MESSAGE_MAX_SIZE: int = 1024 * 1024  # 1MB
+    # ===== Whisper =====
+    WHISPER_ENABLED: bool = os.getenv("WHISPER_ENABLED", "true").lower() in ("1", "true", "yes")
+    WHISPER_DEFAULT_LANGUAGE: str = os.getenv("WHISPER_DEFAULT_LANGUAGE", "ru")
+    WHISPER_MAX_FILE_SIZE_MB: int = int(os.getenv("WHISPER_MAX_FILE_SIZE_MB", "25"))
+    WHISPER_TIMEOUT_SECONDS: int = int(os.getenv("WHISPER_TIMEOUT_SECONDS", "300"))
 
 
 settings = Settings()
