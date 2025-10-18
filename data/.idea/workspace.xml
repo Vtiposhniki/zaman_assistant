@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="405f6d8e-fae4-4f74-b118-e1f84705d66d" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/../REAMDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/products.json" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/products.json" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 0
+}]]></component>
+  <component name="ProjectId" id="34DkNUQtaGPntGksbWGLCRL4G91" />
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "last_opened_file_path": "D:/proj/zaman_bank_track/zaman_assistant/data"
+  }
+}]]></component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="405f6d8e-fae4-4f74-b118-e1f84705d66d" name="Changes" comment="" />
+      <created>1760755490549</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1760755490549</updated>
+    </task>
+    <servers />
+  </component>
+</project>
