@@ -9,6 +9,7 @@ LABEL version="3.0.0"
 
 WORKDIR /build
 
+
 # Установка системных зависимостей
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
@@ -41,7 +42,7 @@ ENV PYTHONUNBUFFERED=1 \
     LC_ALL=C.UTF-8
 
 # Установка curl для healthcheck
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+RUN apt-get update && apt-get install -y --no-install-recommends wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Рабочая директория
@@ -51,7 +52,9 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 
 # Копирование кода
-COPY backend/ ./backend/
+COPY backend/*.py ./
+COPY backend/products.json ./
+COPY backend/services/ ./services/
 COPY requirements.txt .
 
 # Создание директорий
@@ -59,7 +62,7 @@ RUN mkdir -p /app/data /app/logs
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8000/health || exit 1
 
 # Expose
 EXPOSE 8000

@@ -9,7 +9,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$ComposeFile = "\docker-compose.yml"
+$ComposeFile = "infra\docker-compose.yml"
 
 function Write-ColorOutput($ForegroundColor) {
     $fc = $host.UI.RawUI.ForegroundColor

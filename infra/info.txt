@@ -1,0 +1,733 @@
+zaman-backend   | Traceback (most recent call last):
+zaman-backend   |   File "/opt/venv/bin/uvicorn", line 7, in <module>
+zaman-backend   |     sys.exit(main())
+zaman-backend   |              ^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1462, in __call__
+zaman-backend   |     return self.main(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1383, in main
+zaman-backend   |     rv = self.invoke(ctx)
+zaman-backend   |          ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1246, in invoke
+zaman-backend   |     return ctx.invoke(self.callback, **ctx.params)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 814, in invoke
+zaman-backend   |     return callback(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 423, in main
+zaman-backend   |     run(
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 593, in run
+zaman-backend   |     server.run()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 67, in run
+zaman-backend   |     return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/_compat.py", line 23, in asyncio_run
+zaman-backend   |     return runner.run(main)
+zaman-backend   |            ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+zaman-backend   |     return self._loop.run_until_complete(task)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+zaman-backend   |     return future.result()
+zaman-backend   |            ^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 71, in serve
+zaman-backend   |     await self._serve(sockets)
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 78, in _serve
+zaman-backend   |     config.load()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/config.py", line 438, in load
+zaman-backend   |     self.loaded_app = import_from_string(self.app)
+zaman-backend   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 22, in import_from_string
+zaman-backend   |     raise exc from None
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+zaman-backend   |     module = importlib.import_module(module_str)
+zaman-backend   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+zaman-backend   |     return _bootstrap._gcd_import(name[level:], package, level)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+zaman-backend   |   File "/app/backend/main.py", line 18, in <module>
+zaman-backend   |     from database import (
+zaman-backend   | ModuleNotFoundError: No module named 'database'
+zaman-backend   | Traceback (most recent call last):
+zaman-postgres  | The files belonging to this database system will be owned by user "postgres".
+zaman-backend   |   File "/opt/venv/bin/uvicorn", line 7, in <module>
+zaman-backend   |     sys.exit(main())
+zaman-backend   |              ^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1462, in __call__
+zaman-backend   |     return self.main(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1383, in main
+zaman-backend   |     rv = self.invoke(ctx)
+zaman-backend   |          ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1246, in invoke
+zaman-backend   |     return ctx.invoke(self.callback, **ctx.params)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 814, in invoke
+zaman-backend   |     return callback(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 423, in main
+zaman-backend   |     run(
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 593, in run
+zaman-backend   |     server.run()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 67, in run
+zaman-backend   |     return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-postgres  | This user must also own the server process.
+zaman-postgres  | 
+zaman-postgres  | The database cluster will be initialized with this locale configuration:
+zaman-postgres  |   provider:    libc
+zaman-postgres  |   LC_COLLATE:  C
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/_compat.py", line 23, in asyncio_run
+zaman-backend   |     return runner.run(main)
+zaman-postgres  |   LC_CTYPE:    C
+zaman-postgres  |   LC_MESSAGES: en_US.utf8
+zaman-postgres  |   LC_MONETARY: en_US.utf8
+zaman-postgres  |   LC_NUMERIC:  en_US.utf8
+zaman-postgres  |   LC_TIME:     en_US.utf8
+zaman-postgres  | The default text search configuration will be set to "english".
+zaman-postgres  | 
+zaman-postgres  | Data page checksums are disabled.
+zaman-postgres  | 
+zaman-postgres  | fixing permissions on existing directory /var/lib/postgresql/data ... ok
+zaman-postgres  | creating subdirectories ... ok
+zaman-postgres  | selecting dynamic shared memory implementation ... posix
+zaman-postgres  | selecting default max_connections ... 100
+zaman-postgres  | selecting default shared_buffers ... 128MB
+zaman-backend   |            ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+zaman-backend   |     return self._loop.run_until_complete(task)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+zaman-backend   |     return future.result()
+zaman-backend   |            ^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 71, in serve
+zaman-backend   |     await self._serve(sockets)
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 78, in _serve
+zaman-backend   |     config.load()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/config.py", line 438, in load
+zaman-backend   |     self.loaded_app = import_from_string(self.app)
+zaman-backend   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 22, in import_from_string
+zaman-backend   |     raise exc from None
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+zaman-backend   |     module = importlib.import_module(module_str)
+zaman-backend   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+zaman-backend   |     return _bootstrap._gcd_import(name[level:], package, level)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+zaman-backend   |   File "/app/backend/main.py", line 18, in <module>
+zaman-backend   |     from database import (
+zaman-backend   | ModuleNotFoundError: No module named 'database'
+zaman-backend   | Traceback (most recent call last):
+zaman-backend   |   File "/opt/venv/bin/uvicorn", line 7, in <module>
+zaman-backend   |     sys.exit(main())
+zaman-backend   |              ^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1462, in __call__
+zaman-backend   |     return self.main(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1383, in main
+zaman-backend   |     rv = self.invoke(ctx)
+zaman-backend   |          ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1246, in invoke
+zaman-backend   |     return ctx.invoke(self.callback, **ctx.params)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 814, in invoke
+zaman-backend   |     return callback(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-postgres  | selecting default time zone ... UTC
+zaman-postgres  | creating configuration files ... ok
+zaman-postgres  | running bootstrap script ... ok
+zaman-postgres  | sh: locale: not found
+zaman-postgres  | 2025-10-18 08:48:53.987 UTC [36] WARNING:  no usable system locales were found
+zaman-postgres  | performing post-bootstrap initialization ... ok
+zaman-postgres  | syncing data to disk ... ok
+zaman-postgres  | 
+zaman-postgres  | 
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 423, in main
+zaman-backend   |     run(
+zaman-postgres  | Success. You can now start the database server using:
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 593, in run
+zaman-postgres  | 
+zaman-postgres  |     pg_ctl -D /var/lib/postgresql/data -l logfile start
+zaman-postgres  | 
+zaman-postgres  | initdb: warning: enabling "trust" authentication for local connections
+zaman-postgres  | initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+zaman-postgres  | waiting for server to start....2025-10-18 08:48:55.384 UTC [42] LOG:  starting PostgreSQL 16.10 on x86_64-pc-linux-musl, compiled by gcc (Alpine 14.2.0) 14.2.0, 64-bit
+zaman-postgres  | 2025-10-18 08:48:55.388 UTC [42] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+zaman-postgres  | 2025-10-18 08:48:55.401 UTC [45] LOG:  database system was shut down at 2025-10-18 08:48:54 UTC
+zaman-postgres  | 2025-10-18 08:48:55.409 UTC [42] LOG:  database system is ready to accept connections
+zaman-backend   |     server.run()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 67, in run
+zaman-backend   |     return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/_compat.py", line 23, in asyncio_run
+zaman-backend   |     return runner.run(main)
+zaman-backend   |            ^^^^^^^^^^^^^^^^
+zaman-postgres  |  done
+zaman-postgres  | server started
+zaman-postgres  | CREATE DATABASE
+zaman-postgres  | 
+zaman-postgres  | 
+zaman-postgres  | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/init.sql
+zaman-postgres  | psql:/docker-entrypoint-initdb.d/init.sql: error: could not read from input file: Is a directory
+zaman-postgres  | 
+zaman-postgres  | PostgreSQL Database directory appears to contain a database; Skipping initialization
+zaman-postgres  | 
+zaman-postgres  | 2025-10-18 08:48:56.305 UTC [1] LOG:  starting PostgreSQL 16.10 on x86_64-pc-linux-musl, compiled by gcc (Alpine 14.2.0) 14.2.0, 64-bit
+zaman-postgres  | 2025-10-18 08:48:56.306 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+zaman-postgres  | 2025-10-18 08:48:56.306 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+zaman-postgres  | 2025-10-18 08:48:56.312 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+zaman-postgres  | 2025-10-18 08:48:56.321 UTC [30] LOG:  database system was interrupted; last known up at 2025-10-18 08:48:55 UTC
+zaman-postgres  | 2025-10-18 08:48:57.084 UTC [30] LOG:  database system was not properly shut down; automatic recovery in progress
+zaman-postgres  | 2025-10-18 08:48:57.088 UTC [30] LOG:  redo starts at 0/14F25D8
+zaman-postgres  | 2025-10-18 08:48:57.116 UTC [30] LOG:  invalid record length at 0/191E8B8: expected at least 24, got 0
+zaman-postgres  | 2025-10-18 08:48:57.116 UTC [30] LOG:  redo done at 0/191E870 system usage: CPU: user: 0.00 s, system: 0.01 s, elapsed: 0.02 s
+zaman-postgres  | 2025-10-18 08:48:57.123 UTC [28] LOG:  checkpoint starting: end-of-recovery immediate wait
+zaman-postgres  | 2025-10-18 08:48:57.384 UTC [28] LOG:  checkpoint complete: wrote 926 buffers (5.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.032 s, sync=0.219 s, total=0.264 s; sync files=301, longest=0.005 s, average=0.001 s; distance=4272 kB, estimate=4272 kB; lsn=0/191E8B8, redo lsn=0/191E8B8
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+zaman-postgres  | 2025-10-18 08:48:57.392 UTC [1] LOG:  database system is ready to accept connections
+zaman-backend   |     return self._loop.run_until_complete(task)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+zaman-backend   |     return future.result()
+zaman-backend   |            ^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 71, in serve
+zaman-backend   |     await self._serve(sockets)
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 78, in _serve
+zaman-backend   |     config.load()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/config.py", line 438, in load
+zaman-backend   |     self.loaded_app = import_from_string(self.app)
+zaman-backend   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 22, in import_from_string
+zaman-backend   |     raise exc from None
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+zaman-backend   |     module = importlib.import_module(module_str)
+zaman-backend   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+zaman-backend   |     return _bootstrap._gcd_import(name[level:], package, level)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+zaman-backend   |   File "/app/backend/main.py", line 18, in <module>
+zaman-backend   |     from database import (
+zaman-backend   | ModuleNotFoundError: No module named 'database'
+zaman-backend   | Traceback (most recent call last):
+zaman-backend   |   File "/opt/venv/bin/uvicorn", line 7, in <module>
+zaman-backend   |     sys.exit(main())
+zaman-backend   |              ^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1462, in __call__
+zaman-backend   |     return self.main(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1383, in main
+zaman-backend   |     rv = self.invoke(ctx)
+zaman-backend   |          ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1246, in invoke
+zaman-backend   |     return ctx.invoke(self.callback, **ctx.params)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 814, in invoke
+zaman-backend   |     return callback(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 423, in main
+zaman-backend   |     run(
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 593, in run
+zaman-backend   |     server.run()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 67, in run
+zaman-backend   |     return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/_compat.py", line 23, in asyncio_run
+zaman-backend   |     return runner.run(main)
+zaman-backend   |            ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+zaman-backend   |     return self._loop.run_until_complete(task)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+zaman-backend   |     return future.result()
+zaman-backend   |            ^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 71, in serve
+zaman-backend   |     await self._serve(sockets)
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 78, in _serve
+zaman-backend   |     config.load()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/config.py", line 438, in load
+zaman-backend   |     self.loaded_app = import_from_string(self.app)
+zaman-backend   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 22, in import_from_string
+zaman-backend   |     raise exc from None
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+zaman-backend   |     module = importlib.import_module(module_str)
+zaman-backend   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+zaman-backend   |     return _bootstrap._gcd_import(name[level:], package, level)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+zaman-backend   |   File "/app/backend/main.py", line 18, in <module>
+zaman-backend   |     from database import (
+zaman-backend   | ModuleNotFoundError: No module named 'database'
+zaman-backend   | Traceback (most recent call last):
+zaman-backend   |   File "/opt/venv/bin/uvicorn", line 7, in <module>
+zaman-backend   |     sys.exit(main())
+zaman-backend   |              ^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1462, in __call__
+zaman-backend   |     return self.main(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1383, in main
+zaman-backend   |     rv = self.invoke(ctx)
+zaman-backend   |          ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1246, in invoke
+zaman-backend   |     return ctx.invoke(self.callback, **ctx.params)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 814, in invoke
+zaman-backend   |     return callback(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 423, in main
+zaman-backend   |     run(
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 593, in run
+zaman-backend   |     server.run()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 67, in run
+zaman-backend   |     return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/_compat.py", line 23, in asyncio_run
+zaman-backend   |     return runner.run(main)
+zaman-backend   |            ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+zaman-backend   |     return self._loop.run_until_complete(task)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+zaman-backend   |     return future.result()
+zaman-backend   |            ^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 71, in serve
+zaman-backend   |     await self._serve(sockets)
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 78, in _serve
+zaman-backend   |     config.load()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/config.py", line 438, in load
+zaman-backend   |     self.loaded_app = import_from_string(self.app)
+zaman-backend   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 22, in import_from_string
+zaman-backend   |     raise exc from None
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+zaman-backend   |     module = importlib.import_module(module_str)
+zaman-backend   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+zaman-backend   |     return _bootstrap._gcd_import(name[level:], package, level)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+zaman-backend   |   File "/app/backend/main.py", line 18, in <module>
+zaman-backend   |     from database import (
+zaman-backend   | ModuleNotFoundError: No module named 'database'
+zaman-backend   | Traceback (most recent call last):
+zaman-backend   |   File "/opt/venv/bin/uvicorn", line 7, in <module>
+zaman-backend   |     sys.exit(main())
+zaman-backend   |              ^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1462, in __call__
+zaman-backend   |     return self.main(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1383, in main
+zaman-backend   |     rv = self.invoke(ctx)
+zaman-backend   |          ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1246, in invoke
+zaman-backend   |     return ctx.invoke(self.callback, **ctx.params)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 814, in invoke
+zaman-backend   |     return callback(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 423, in main
+zaman-backend   |     run(
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 593, in run
+zaman-backend   |     server.run()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 67, in run
+zaman-backend   |     return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/_compat.py", line 23, in asyncio_run
+zaman-backend   |     return runner.run(main)
+zaman-backend   |            ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+zaman-backend   |     return self._loop.run_until_complete(task)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+zaman-backend   |     return future.result()
+zaman-backend   |            ^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 71, in serve
+zaman-backend   |     await self._serve(sockets)
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 78, in _serve
+zaman-backend   |     config.load()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/config.py", line 438, in load
+zaman-backend   |     self.loaded_app = import_from_string(self.app)
+zaman-backend   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 22, in import_from_string
+zaman-backend   |     raise exc from None
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+zaman-backend   |     module = importlib.import_module(module_str)
+zaman-backend   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+zaman-backend   |     return _bootstrap._gcd_import(name[level:], package, level)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+zaman-backend   |   File "/app/backend/main.py", line 18, in <module>
+zaman-backend   |     from database import (
+zaman-backend   | ModuleNotFoundError: No module named 'database'
+zaman-backend   | Traceback (most recent call last):
+zaman-backend   |   File "/opt/venv/bin/uvicorn", line 7, in <module>
+zaman-backend   |     sys.exit(main())
+zaman-backend   |              ^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1462, in __call__
+zaman-backend   |     return self.main(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1383, in main
+zaman-backend   |     rv = self.invoke(ctx)
+zaman-backend   |          ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1246, in invoke
+zaman-backend   |     return ctx.invoke(self.callback, **ctx.params)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 814, in invoke
+zaman-backend   |     return callback(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 423, in main
+zaman-backend   |     run(
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 593, in run
+zaman-backend   |     server.run()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 67, in run
+zaman-backend   |     return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/_compat.py", line 23, in asyncio_run
+zaman-backend   |     return runner.run(main)
+zaman-backend   |            ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+zaman-backend   |     return self._loop.run_until_complete(task)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+zaman-backend   |     return future.result()
+zaman-backend   |            ^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 71, in serve
+zaman-backend   |     await self._serve(sockets)
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 78, in _serve
+zaman-backend   |     config.load()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/config.py", line 438, in load
+zaman-backend   |     self.loaded_app = import_from_string(self.app)
+zaman-backend   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 22, in import_from_string
+zaman-backend   |     raise exc from None
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+zaman-backend   |     module = importlib.import_module(module_str)
+zaman-backend   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+zaman-backend   |     return _bootstrap._gcd_import(name[level:], package, level)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+zaman-backend   |   File "/app/backend/main.py", line 18, in <module>
+zaman-backend   |     from database import (
+zaman-backend   | ModuleNotFoundError: No module named 'database'
+zaman-backend   | Traceback (most recent call last):
+zaman-backend   |   File "/opt/venv/bin/uvicorn", line 7, in <module>
+zaman-backend   |     sys.exit(main())
+zaman-backend   |              ^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1462, in __call__
+zaman-backend   |     return self.main(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1383, in main
+zaman-backend   |     rv = self.invoke(ctx)
+zaman-backend   |          ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1246, in invoke
+zaman-backend   |     return ctx.invoke(self.callback, **ctx.params)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 814, in invoke
+zaman-backend   |     return callback(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 423, in main
+zaman-backend   |     run(
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 593, in run
+zaman-backend   |     server.run()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 67, in run
+zaman-backend   |     return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/_compat.py", line 23, in asyncio_run
+zaman-backend   |     return runner.run(main)
+zaman-backend   |            ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+zaman-backend   |     return self._loop.run_until_complete(task)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+zaman-backend   |     return future.result()
+zaman-backend   |            ^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 71, in serve
+zaman-backend   |     await self._serve(sockets)
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 78, in _serve
+zaman-backend   |     config.load()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/config.py", line 438, in load
+zaman-backend   |     self.loaded_app = import_from_string(self.app)
+zaman-backend   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 22, in import_from_string
+zaman-backend   |     raise exc from None
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+zaman-backend   |     module = importlib.import_module(module_str)
+zaman-backend   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+zaman-backend   |     return _bootstrap._gcd_import(name[level:], package, level)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+zaman-backend   |   File "/app/backend/main.py", line 18, in <module>
+zaman-backend   |     from database import (
+zaman-backend   | ModuleNotFoundError: No module named 'database'
+zaman-backend   | Traceback (most recent call last):
+zaman-backend   |   File "/opt/venv/bin/uvicorn", line 7, in <module>
+zaman-backend   |     sys.exit(main())
+zaman-backend   |              ^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1462, in __call__
+zaman-backend   |     return self.main(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1383, in main
+zaman-backend   |     rv = self.invoke(ctx)
+zaman-backend   |          ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1246, in invoke
+zaman-backend   |     return ctx.invoke(self.callback, **ctx.params)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 814, in invoke
+zaman-backend   |     return callback(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 423, in main
+zaman-backend   |     run(
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 593, in run
+zaman-backend   |     server.run()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 67, in run
+zaman-backend   |     return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/_compat.py", line 23, in asyncio_run
+zaman-backend   |     return runner.run(main)
+zaman-backend   |            ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+zaman-backend   |     return self._loop.run_until_complete(task)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+zaman-backend   |     return future.result()
+zaman-backend   |            ^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 71, in serve
+zaman-backend   |     await self._serve(sockets)
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 78, in _serve
+zaman-backend   |     config.load()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/config.py", line 438, in load
+zaman-backend   |     self.loaded_app = import_from_string(self.app)
+zaman-backend   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 22, in import_from_string
+zaman-backend   |     raise exc from None
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+zaman-backend   |     module = importlib.import_module(module_str)
+zaman-backend   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+zaman-backend   |     return _bootstrap._gcd_import(name[level:], package, level)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+zaman-backend   |   File "/app/backend/main.py", line 18, in <module>
+zaman-backend   |     from database import (
+zaman-backend   | ModuleNotFoundError: No module named 'database'
+zaman-backend   | Traceback (most recent call last):
+zaman-backend   |   File "/opt/venv/bin/uvicorn", line 7, in <module>
+zaman-backend   |     sys.exit(main())
+zaman-backend   |              ^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1462, in __call__
+zaman-backend   |     return self.main(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1383, in main
+zaman-backend   |     rv = self.invoke(ctx)
+zaman-backend   |          ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1246, in invoke
+zaman-backend   |     return ctx.invoke(self.callback, **ctx.params)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 814, in invoke
+zaman-backend   |     return callback(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 423, in main
+zaman-backend   |     run(
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 593, in run
+zaman-backend   |     server.run()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 67, in run
+zaman-backend   |     return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/_compat.py", line 23, in asyncio_run
+zaman-backend   |     return runner.run(main)
+zaman-backend   |            ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+zaman-backend   |     return self._loop.run_until_complete(task)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+zaman-backend   |     return future.result()
+zaman-backend   |            ^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 71, in serve
+zaman-backend   |     await self._serve(sockets)
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 78, in _serve
+zaman-backend   |     config.load()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/config.py", line 438, in load
+zaman-backend   |     self.loaded_app = import_from_string(self.app)
+zaman-backend   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 22, in import_from_string
+zaman-backend   |     raise exc from None
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+zaman-backend   |     module = importlib.import_module(module_str)
+zaman-backend   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+zaman-backend   |     return _bootstrap._gcd_import(name[level:], package, level)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+zaman-backend   |   File "/app/backend/main.py", line 18, in <module>
+zaman-backend   |     from database import (
+zaman-backend   | ModuleNotFoundError: No module named 'database'
+zaman-backend   | Traceback (most recent call last):
+zaman-backend   |   File "/opt/venv/bin/uvicorn", line 7, in <module>
+zaman-backend   |     sys.exit(main())
+zaman-backend   |              ^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1462, in __call__
+zaman-backend   |     return self.main(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1383, in main
+zaman-backend   |     rv = self.invoke(ctx)
+zaman-backend   |          ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1246, in invoke
+zaman-backend   |     return ctx.invoke(self.callback, **ctx.params)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 814, in invoke
+zaman-backend   |     return callback(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 423, in main
+zaman-backend   |     run(
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 593, in run
+zaman-backend   |     server.run()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 67, in run
+zaman-backend   |     return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/_compat.py", line 23, in asyncio_run
+zaman-backend   |     return runner.run(main)
+zaman-backend   |            ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+zaman-backend   |     return self._loop.run_until_complete(task)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+zaman-backend   |     return future.result()
+zaman-backend   |            ^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 71, in serve
+zaman-backend   |     await self._serve(sockets)
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 78, in _serve
+zaman-backend   |     config.load()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/config.py", line 438, in load
+zaman-backend   |     self.loaded_app = import_from_string(self.app)
+zaman-backend   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 22, in import_from_string
+zaman-backend   |     raise exc from None
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+zaman-backend   |     module = importlib.import_module(module_str)
+zaman-backend   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+zaman-backend   |     return _bootstrap._gcd_import(name[level:], package, level)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+zaman-backend   |   File "/app/backend/main.py", line 18, in <module>
+zaman-backend   |     from database import (
+zaman-backend   | ModuleNotFoundError: No module named 'database'
+zaman-backend   | Traceback (most recent call last):
+zaman-backend   |   File "/opt/venv/bin/uvicorn", line 7, in <module>
+zaman-backend   |     sys.exit(main())
+zaman-backend   |              ^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1462, in __call__
+zaman-backend   |     return self.main(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1383, in main
+zaman-backend   |     rv = self.invoke(ctx)
+zaman-backend   |          ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 1246, in invoke
+zaman-backend   |     return ctx.invoke(self.callback, **ctx.params)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/click/core.py", line 814, in invoke
+zaman-backend   |     return callback(*args, **kwargs)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 423, in main
+zaman-backend   |     run(
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/main.py", line 593, in run
+zaman-backend   |     server.run()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 67, in run
+zaman-backend   |     return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/_compat.py", line 23, in asyncio_run
+zaman-backend   |     return runner.run(main)
+zaman-backend   |            ^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+zaman-backend   |     return self._loop.run_until_complete(task)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+zaman-backend   |     return future.result()
+zaman-backend   |            ^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 71, in serve
+zaman-backend   |     await self._serve(sockets)
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/server.py", line 78, in _serve
+zaman-backend   |     config.load()
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/config.py", line 438, in load
+zaman-backend   |     self.loaded_app = import_from_string(self.app)
+zaman-backend   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 22, in import_from_string
+zaman-backend   |     raise exc from None
+zaman-backend   |   File "/opt/venv/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+zaman-backend   |     module = importlib.import_module(module_str)
+zaman-backend   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+zaman-backend   |     return _bootstrap._gcd_import(name[level:], package, level)
+zaman-backend   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+zaman-backend   |   File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+zaman-backend   |   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+zaman-backend   |   File "/app/backend/main.py", line 18, in <module>
+zaman-backend   |     from database import (
+zaman-backend   | ModuleNotFoundError: No module named 'database'
