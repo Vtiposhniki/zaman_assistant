@@ -1,322 +1,118 @@
-/* ===== RESET & BASE ===== */
-* {
+:root {
+  --primary: #14b8a6;
+  --primary-dark: #0d9488;
+  --primary-light: #a7f3d0;
+  --secondary: #06b6d4;
+  --secondary-dark: #0891b2;
+  --gray-900: #111827;
+  --gray-700: #374151;
+  --gray-600: #4b5563;
+  --gray-500: #6b7280;
+  --gray-400: #9ca3af;
+  --gray-300: #d1d5db;
+  --gray-200: #e5e7eb;
+  --gray-100: #f3f4f6;
+  --gray-50: #f9fafb;
+}
+
+*,
+*::before,
+*::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-html, body {
-  width: 100%;
-  min-height: 100vh;
-  overflow-x: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
+html,
+body,
 #root {
   width: 100%;
-  min-height: 100vh;
+  height: 100%;
   margin: 0;
   padding: 0;
 }
 
-/* ===== MOBILE FIRST (По умолчанию - телефон) ===== */
-.max-w-7xl {
-  max-width: 100%;
-  padding: 0 12px;
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: linear-gradient(to bottom right, #f0fdfa, #ffffff, #f0f9ff);
+  color: var(--gray-900);
+  overflow-x: hidden;
 }
 
-main {
-  padding: 16px 12px !important;
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
-/* Заголовки - меньше на телефоне */
-.text-3xl {
-  font-size: 1.5rem !important;
-  line-height: 2rem !important;
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  padding: 0;
+  font-weight: 600;
 }
 
-.text-2xl {
-  font-size: 1.25rem !important;
-  line-height: 1.75rem !important;
+p {
+  margin: 0;
+  padding: 0;
 }
 
-.text-xl {
-  font-size: 1.125rem !important;
-  line-height: 1.5rem !important;
+/* Links */
+a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: color 0.2s;
 }
 
-/* Отступы - меньше на телефоне */
-.p-8 {
-  padding: 16px !important;
+a:hover {
+  color: var(--primary-dark);
 }
 
-.p-6 {
-  padding: 12px !important;
-}
-
-.py-8 {
-  padding-top: 16px !important;
-  padding-bottom: 16px !important;
-}
-
-.gap-6 {
-  gap: 12px !important;
-}
-
-.gap-4 {
-  gap: 8px !important;
-}
-
-/* Grid - одна колонка на телефоне */
-.grid-cols-1 {
-  grid-template-columns: 1fr !important;
-}
-
-.md\:grid-cols-2,
-.md\:grid-cols-4,
-.lg\:grid-cols-4 {
-  grid-template-columns: 1fr !important;
-}
-
-/* Кнопки - больше для touch */
+/* Buttons */
 button {
-  min-height: 44px;
-  min-width: 44px;
-  touch-action: manipulation;
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
 }
 
-input, select, textarea {
-  min-height: 44px;
-  font-size: 16px !important; /* Prevent zoom on iOS */
-}
-
-/* Формы - полная ширина на телефоне */
-form .grid {
-  grid-template-columns: 1fr !important;
-}
-
-/* Карточки - меньше padding */
-.bg-white.rounded-xl {
-  border-radius: 12px !important;
-}
-
-/* Чат - адаптивная высота */
-.h-\[600px\] {
-  height: calc(100vh - 180px) !important;
-  max-height: 600px;
-}
-
-/* ===== TABLET (768px+) ===== */
-@media (min-width: 768px) {
-  .max-w-7xl {
-    padding: 0 20px;
-  }
-
-  main {
-    padding: 24px 20px !important;
-  }
-
-  /* Заголовки - средний размер */
-  .text-3xl {
-    font-size: 1.875rem !important;
-    line-height: 2.25rem !important;
-  }
-
-  .text-2xl {
-    font-size: 1.5rem !important;
-    line-height: 2rem !important;
-  }
-
-  .text-xl {
-    font-size: 1.25rem !important;
-    line-height: 1.75rem !important;
-  }
-
-  /* Отступы - средние */
-  .p-8 {
-    padding: 24px !important;
-  }
-
-  .p-6 {
-    padding: 20px !important;
-  }
-
-  .py-8 {
-    padding-top: 24px !important;
-    padding-bottom: 24px !important;
-  }
-
-  .gap-6 {
-    gap: 16px !important;
-  }
-
-  .gap-4 {
-    gap: 12px !important;
-  }
-
-  /* Grid - две колонки */
-  .md\:grid-cols-2 {
-    grid-template-columns: repeat(2, 1fr) !important;
-  }
-
-  .md\:grid-cols-4 {
-    grid-template-columns: repeat(2, 1fr) !important;
-  }
-
-  /* Формы - две колонки */
-  form .grid.md\:grid-cols-2 {
-    grid-template-columns: repeat(2, 1fr) !important;
-  } Header - фиксированный на всех устройствах */
-header {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-}
-
-/* Mobile menu - плавное появление */
-@media (max-width: 767px) {
-  .md\:hidden {
-    animation: slideDown 0.3s ease;
-  }
-
-  @keyframes slideDown {
-    from {
-      opacity: 0;
-      transform: translateY(-10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-}
-
-/* Chat messages - адаптивная ширина */
-.max-w-xs {
-  max-width: 85% !important;
-}
-
-@media (min-width: 768px) {
-  .md\:max-w-md {
-    max-width: 28rem !important;
-  }
-}
-
-/* Input focus - улучшенный стиль */
-input:focus,
-select:focus,
-textarea:focus {
-  outline: none;
-  border-color: #14b8a6 !important;
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
-}
-
-/* Button active state - для touch */
 button:active {
   transform: scale(0.98);
 }
 
-/* Карточки целей - адаптивные */
-@media (max-width: 767px) {
-  .bg-white.rounded-xl.shadow-sm.p-6.border-l-4 {
-    padding: 16px !important;
-  }
-
-  .grid.grid-cols-2.gap-4 {
-    grid-template-columns: 1fr !important;
-    gap: 8px !important;
-  }
+/* Inputs */
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--gray-300);
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  min-height: 2.75rem;
 }
 
-/* Progress bars - видимость на маленьких экранах */
-.w-full.h-2,
-.w-full.h-3 {
-  min-height: 8px;
-
-  /* Чат - фиксированная высота */
-  .h-\[600px\] {
-    height: 600px !important;
-  }
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
 }
 
-/* ===== DESKTOP (1024px+) ===== */
-@media (min-width: 1024px) {
-  .max-w-7xl {
-    max-width: 1280px;
-    padding: 0 32px;
-  }
-
-  main {
-    padding: 32px !important;
-  }
-
-  /* Заголовки - полный размер */
-  .text-3xl {
-    font-size: 2.25rem !important;
-    line-height: 2.5rem !important;
-  }
-
-  .text-2xl {
-    font-size: 1.875rem !important;
-    line-height: 2.25rem !important;
-  }
-
-  .text-xl {
-    font-size: 1.5rem !important;
-    line-height: 2rem !important;
-  }
-
-  /* Отступы - полные */
-  .p-8 {
-    padding: 32px !important;
-  }
-
-  .p-6 {
-    padding: 24px !important;
-  }
-
-  .py-8 {
-    padding-top: 32px !important;
-    padding-bottom: 32px !important;
-  }
-
-  .gap-6 {
-    gap: 24px !important;
-  }
-
-  .gap-4 {
-    gap: 16px !important;
-  }
-
-  /* Grid - четыре колонки */
-  .md\:grid-cols-4,
-  .lg\:grid-cols-4 {
-    grid-template-columns: repeat(4, 1fr) !important;
-  }
-
-  /* Hover эффекты только на desktop */
-  button:hover:not(:disabled),
-  a:hover {
-    transform: translateY(-2px);
-    transition: all 0.2s ease;
-  }
+input::placeholder,
+textarea::placeholder {
+  color: var(--gray-400);
 }
 
-/* ===== LARGE DESKTOP (1536px+) ===== */
-@media (min-width: 1536px) {
-  .max-w-7xl {
-    max-width: 1536px;
-  }
-}
-
-/* ===== СПЕЦИФИЧНЫЕ КОМПОНЕНТЫ ===== */
-
-/*
-}
-
-/* Scrollbar - кастомизация */
+/* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -327,72 +123,188 @@ button:active {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #14b8a6;
+  background: var(--primary);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #0d9488;
+  background: var(--primary-dark);
+}
+
+/* Utilities */
+.text-center {
+  text-align: center;
+}
+
+.text-left {
+  text-align: left;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gap-1 { gap: 0.25rem; }
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 0.75rem; }
+.gap-4 { gap: 1rem; }
+.gap-6 { gap: 1.5rem; }
+.gap-8 { gap: 2rem; }
+
+.p-2 { padding: 0.5rem; }
+.p-4 { padding: 1rem; }
+.p-6 { padding: 1.5rem; }
+.p-8 { padding: 2rem; }
+
+.m-0 { margin: 0; }
+.m-1 { margin: 0.25rem; }
+.m-2 { margin: 0.5rem; }
+.m-4 { margin: 1rem; }
+
+.mb-1 { margin-bottom: 0.25rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-4 { margin-bottom: 1rem; }
+.mb-6 { margin-bottom: 1.5rem; }
+
+.mt-1 { margin-top: 0.25rem; }
+.mt-2 { margin-top: 0.5rem; }
+.mt-4 { margin-top: 1rem; }
+.mt-6 { margin-top: 1.5rem; }
+
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+
+.rounded { border-radius: 0.25rem; }
+.rounded-md { border-radius: 0.375rem; }
+.rounded-lg { border-radius: 0.5rem; }
+.rounded-xl { border-radius: 0.75rem; }
+
+.shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.shadow {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.transition {
+  transition: all 0.2s ease;
+}
+
+.opacity-50 { opacity: 0.5; }
+.opacity-75 { opacity: 0.75; }
+
+/* Responsive */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  .hidden-mobile {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .hidden-tablet {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .hidden-desktop {
+    display: none;
+  }
 }
 
 /* Loading animation */
-@keyframes bounce {
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
   0%, 100% {
-    transform: translateY(0);
+    opacity: 1;
   }
   50% {
-    transform: translateY(-10px);
+    opacity: 0.5;
   }
 }
 
-.animate-bounce {
-  animation: bounce 1s infinite;
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
 
-/* Accessibility - улучшенный фокус для клавиатуры */
-button:focus-visible,
-input:focus-visible,
-select:focus-visible {
-  outline: 2px solid #14b8a6;
-  outline-offset: 2px;
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Touch devices - убрать hover эффекты */
-@media (hover: none) and (pointer: coarse) {
-  button:hover,
-  a:hover {
-    transform: none;
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
-/* Safe area для iPhone с вырезом */
-@supports (padding: max(0px)) {
-  body {
-    padding-left: max(12px, env(safe-area-inset-left));
-    padding-right: max(12px, env(safe-area-inset-right));
-  }
-}
-
-/* Landscape mode на телефонах */
-@media (max-height: 600px) and (orientation: landscape) {
-  .h-\[600px\] {
-    height: calc(100vh - 80px) !important;
-  }
-
-  main {
-    padding: 12px !important;
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
   }
 }
 
 /* Print styles */
 @media print {
+  body {
+    background: white;
+  }
+
   header,
   button,
-  .bg-gradient-to-br {
+  .no-print {
     display: none;
   }
 
   main {
-    padding: 0 !important;
+    padding: 0;
+  }
+}
+
+/* Focus visible for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Safe area for notched devices */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
   }
 }
