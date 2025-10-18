@@ -42,11 +42,11 @@ services:
     
     environment:
       # ✅ ИСПРАВЛЕНО: Правильный DATABASE_URL
-      - DATABASE_URL=sqlite:///./zaman_assistant.db
+      - DATABASE_URL=postgresql://zaman:zamanpass@postgres:5432/zaman_db
       - OPENAI_HUB_KEY=${OPENAI_HUB_KEY:-}
       - OPENAI_HUB_URL=${OPENAI_HUB_URL:-https://openai-hub.neuraldeep.tech}
       - ADMIN_TOKEN=${ADMIN_TOKEN:-supersecret}
-      - MOCK_MODE=${MOCK_MODE:-false}
+      - MOCK_MODE=${MOCK_MODE:-true}
       - DEBUG=${DEBUG:-true}
       - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-3600}
       - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-200}
@@ -65,9 +65,9 @@ services:
     ports:
       - "8000:8000"
     
-    # depends_on:
-    #   postgres:
-    #     condition: service_healthy
+    depends_on:
+      postgres:
+        condition: service_healthy
     
     restart: unless-stopped
     

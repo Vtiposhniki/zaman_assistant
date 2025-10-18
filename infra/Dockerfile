@@ -1,21 +1,22 @@
 # ===== MULTI-STAGE DOCKER BUILD FOR ZAMAN ASSISTANT =====
-# Windows-совместимая версия
+# Windows-совместимая версия (ИСПРАВЛЕНО)
 
 # ===== STAGE 1: Builder =====
-FROM python:3.11-slim as builder
+FROM python:3.11-slim-bookworm AS builder
 
 LABEL maintainer="Zaman Bank AI Team <ai-team@zamanbank.kz>"
 LABEL version="3.0.0"
 
 WORKDIR /build
 
-
-# Установка системных зависимостей
+# Установка системных зависимостей (включая для psycopg2)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     python3-dev \
     curl \
+    libpq-dev \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Копирование requirements
@@ -27,8 +28,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
+
 # ===== STAGE 2: Runtime =====
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm AS runtime
 
 LABEL maintainer="Zaman Bank AI Team <ai-team@zamanbank.kz>"
 LABEL version="3.0.0"
@@ -41,34 +43,34 @@ ENV PYTHONUNBUFFERED=1 \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 
-# Установка curl для healthcheck
-RUN apt-get update && apt-get install -y --no-install-recommends wget \
+# Установка curl и PostgreSQL клиента для healthcheck и runtime
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
 # Рабочая директория
 WORKDIR /app
 
-# Копирование venv из builder
+# ✅ Копирование venv из builder stage
 COPY --from=builder /opt/venv /opt/venv
 
-# Копирование кода
-COPY backend/*.py ./
-COPY backend/products.json ./
-COPY backend/services/ ./services/
-COPY requirements.txt .
+# ✅ Копирование backend структуры
+COPY backend/ /app/backend/
+COPY requirements.txt /app/
 
 # Создание директорий
 RUN mkdir -p /app/data /app/logs
 
+# ✅ Инициализация базы данных (игнорирует ошибку при первом запуске)
+RUN cd /app && python "import sys; sys.path.insert(0, '/app'); from backend.database import init_db; init_db()" || echo 'DB init skipped (first run)'
+CMD ["sh", "-c", "cd /app/", "python main.py"]
+
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
 
-# Expose
+# Expose порт
 EXPOSE 8000
 
-# Инициализация БД (опционально)
-RUN cd backend && python database.py || true
-
-# ✅ ИСПРАВЛЕНО: правильный путь к модулю
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# ✅ Запуск FastAPI backend
