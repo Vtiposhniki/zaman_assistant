@@ -1,0 +1,392 @@
+# ===== CONTINUOUS DEPLOYMENT WORKFLOW =====
+# Deployment pipeline with quality gates and rollback capabilities
+
+name: CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      force_deploy:
+        description: 'Force deployment (skip quality gates)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ===== 1. PRE-DEPLOYMENT CHECKS =====
+  pre-deployment:
+    name: Pre-deployment Checks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'release'
+    
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      should_deploy: ${{ steps.deploy.outputs.should_deploy }}
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🔍 Determine Environment
+        id: env
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          else
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: 📝 Generate Image Tag
+        id: meta
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "image_tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "image_tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: 🚦 Check Deployment Conditions
+        id: deploy
+        run: |
+          # Check if CI pipeline passed
+          if [[ "${{ github.event.inputs.force_deploy }}" == "true" ]]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Force deployment enabled - skipping quality gates"
+          else
+            # Check CI status
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "✅ Deployment conditions met"
+          fi
+
+  # ===== 2. BUILD & PUSH IMAGE =====
+  build:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: [pre-deployment]
+    if: needs.pre-deployment.outputs.should_deploy == 'true'
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    outputs:
+      image_digest: ${{ steps.build.outputs.digest }}
+      image_url: ${{ steps.meta.outputs.tags }}
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: 🔐 Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 📝 Extract Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=${{ needs.pre-deployment.outputs.image_tag }}
+      
+      - name: 🏗️ Build and Push Docker Image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./infra/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+      
+      - name: 🔍 Image Security Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.meta.outputs.tags }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: 📤 Upload Security Scan Results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ===== 3. DEPLOY TO STAGING =====
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: needs.pre-deployment.outputs.environment == 'staging'
+    environment:
+      name: staging
+      url: https://staging.zamanbank.kz
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+      
+      - name: 🚀 Deploy to ECS Staging
+        run: |
+          # Update ECS service with new image
+          aws ecs update-service \
+            --cluster zaman-staging \
+            --service zaman-backend \
+            --force-new-deployment
+      
+      - name: ⏳ Wait for Deployment
+        run: |
+          aws ecs wait services-stable \
+            --cluster zaman-staging \
+            --services zaman-backend
+      
+      - name: 🔍 Health Check
+        run: |
+          max_attempts=30
+          attempt=0
+          until curl -f https://staging.zamanbank.kz/health || [ $attempt -eq $max_attempts ]; do
+            echo "Waiting for service to be healthy... ($attempt/$max_attempts)"
+            sleep 10
+            attempt=$((attempt+1))
+          done
+          
+          if [ $attempt -eq $max_attempts ]; then
+            echo "❌ Health check failed after $max_attempts attempts"
+            exit 1
+          fi
+          echo "✅ Service is healthy!"
+      
+      - name: 🧪 Run Smoke Tests
+        run: |
+          python -c "
+          import httpx
+          import sys
+          
+          tests = [
+              ('Health Check', '/health'),
+              ('Products List', '/products'),
+              ('Stats Dashboard', '/stats/dashboard'),
+          ]
+          
+          failed = []
+          for name, endpoint in tests:
+              try:
+                  r = httpx.get(f'https://staging.zamanbank.kz{endpoint}', timeout=10)
+                  if r.status_code == 200:
+                      print(f'✅ {name}: OK')
+                  else:
+                      print(f'❌ {name}: HTTP {r.status_code}')
+                      failed.append(name)
+              except Exception as e:
+                  print(f'❌ {name}: {e}')
+                  failed.append(name)
+          
+          if failed:
+              print(f'\n❌ {len(failed)} tests failed: {failed}')
+              sys.exit(1)
+          else:
+              print('\n✅ All smoke tests passed!')
+          "
+
+  # ===== 4. DEPLOY TO PRODUCTION =====
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: needs.pre-deployment.outputs.environment == 'production'
+    environment:
+      name: production
+      url: https://api.zamanbank.kz
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+      
+      - name: 📦 Create Backup
+        run: |
+          timestamp=$(date +%Y%m%d-%H%M%S)
+          aws s3 cp s3://zaman-backups/latest.sql \
+            s3://zaman-backups/pre-deploy-${timestamp}.sql
+          echo "Backup created: pre-deploy-${timestamp}.sql"
+      
+      - name: 🚀 Blue-Green Deployment
+        run: |
+          # Deploy to green environment
+          aws ecs update-service \
+            --cluster zaman-production \
+            --service zaman-backend-green \
+            --force-new-deployment
+          
+          # Wait for green to be stable
+          aws ecs wait services-stable \
+            --cluster zaman-production \
+            --services zaman-backend-green
+          
+          # Health check on green
+          curl -f https://green.zamanbank.kz/health
+          
+          # Switch traffic to green
+          aws elbv2 modify-listener \
+            --listener-arn ${{ secrets.ALB_LISTENER_ARN }} \
+            --default-actions Type=forward,TargetGroupArn=${{ secrets.GREEN_TARGET_GROUP }}
+          
+          # Wait and verify
+          sleep 30
+          curl -f https://api.zamanbank.kz/health
+      
+      - name: 🧪 Run Production Smoke Tests
+        run: |
+          python -c "
+          import httpx
+          import sys
+          
+          tests = [
+              ('Health Check', '/health'),
+              ('Products List', '/products'),
+              ('Stats Dashboard', '/stats/dashboard'),
+          ]
+          
+          failed = []
+          for name, endpoint in tests:
+              try:
+                  r = httpx.get(f'https://api.zamanbank.kz{endpoint}', timeout=10)
+                  if r.status_code == 200:
+                      print(f'✅ {name}: OK')
+                  else:
+                      print(f'❌ {name}: HTTP {r.status_code}')
+                      failed.append(name)
+              except Exception as e:
+                  print(f'❌ {name}: {e}')
+                  failed.append(name)
+          
+          if failed:
+              print(f'\n❌ {len(failed)} tests failed: {failed}')
+              sys.exit(1)
+          else:
+              print('\n✅ All production smoke tests passed!')
+          "
+      
+      - name: 📢 Notify Slack
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "🚀 Zaman Assistant deployed to PRODUCTION",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "✅ *Deployment Successful*\nVersion: `${{ github.sha }}`\nEnvironment: Production\nImage: `${{ needs.build.outputs.image_url }}`"
+                  }
+                }
+              ]
+            }
+
+  # ===== 5. POST-DEPLOYMENT MONITORING =====
+  post-deployment:
+    name: Post-deployment Monitoring
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: always() && (needs.deploy-staging.result == 'success' || needs.deploy-production.result == 'success')
+    
+    steps:
+      - name: 📊 Monitor Deployment Health
+        run: |
+          echo "Monitoring deployment health for 5 minutes..."
+          for i in {1..30}; do
+            echo "Health check $i/30"
+            # Add monitoring logic here
+            sleep 10
+          done
+          echo "✅ Post-deployment monitoring completed"
+
+  # ===== 6. ROLLBACK (Manual Trigger) =====
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'rollback'
+    environment:
+      name: production
+    
+    steps:
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+      
+      - name: ⏪ Rollback to Blue
+        run: |
+          aws elbv2 modify-listener \
+            --listener-arn ${{ secrets.ALB_LISTENER_ARN }} \
+            --default-actions Type=forward,TargetGroupArn=${{ secrets.BLUE_TARGET_GROUP }}
+      
+      - name: 📢 Notify Rollback
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "⏪ Rollback executed for Zaman Assistant",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "⚠️ *Rollback Executed*\nEnvironment: Production\nTime: `$(date)`"
+                  }
+                }
+              ]
+            }

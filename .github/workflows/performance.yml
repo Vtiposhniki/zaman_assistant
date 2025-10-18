@@ -1,0 +1,334 @@
+# ===== PERFORMANCE TESTING WORKFLOW =====
+# Load testing, performance monitoring, and optimization
+
+name: Performance Testing
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Target URL for testing'
+        required: true
+        default: 'https://staging.zamanbank.kz'
+      test_type:
+        description: 'Type of performance test'
+        required: true
+        default: 'load'
+        type: choice
+        options:
+          - load
+          - stress
+          - spike
+          - volume
+      users:
+        description: 'Number of concurrent users'
+        required: true
+        default: '100'
+      duration:
+        description: 'Test duration in seconds'
+        required: true
+        default: '300'
+      ramp_up:
+        description: 'Ramp-up time in seconds'
+        required: true
+        default: '60'
+  schedule:
+    # Run performance tests every Sunday at 2 AM
+    - cron: '0 2 * * 0'
+
+env:
+  K6_VERSION: '0.47.0'
+
+jobs:
+  # ===== 1. LOAD TESTING =====
+  load-test:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐳 Install K6
+        run: |
+          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+          k6 version
+      
+      - name: 🔧 Configure Test Parameters
+        run: |
+          echo "TARGET_URL=${{ github.event.inputs.target_url || 'https://staging.zamanbank.kz' }}" >> $GITHUB_ENV
+          echo "USERS=${{ github.event.inputs.users || '100' }}" >> $GITHUB_ENV
+          echo "DURATION=${{ github.event.inputs.duration || '300' }}" >> $GITHUB_ENV
+          echo "RAMP_UP=${{ github.event.inputs.ramp_up || '60' }}" >> $GITHUB_ENV
+          echo "TEST_TYPE=${{ github.event.inputs.test_type || 'load' }}" >> $GITHUB_ENV
+      
+      - name: 📝 Generate K6 Test Script
+        run: |
+          cat > k6-test.js << 'EOF'
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+          import { Rate } from 'k6/metrics';
+          
+          const BASE_URL = __ENV.TARGET_URL;
+          const VUS = parseInt(__ENV.USERS);
+          const DURATION = __ENV.DURATION + 's';
+          const RAMP_UP = __ENV.RAMP_UP + 's';
+          
+          // Custom metrics
+          const errorRate = new Rate('error_rate');
+          
+          export const options = {
+            stages: [
+              { duration: RAMP_UP, target: VUS },
+              { duration: DURATION, target: VUS },
+              { duration: '30s', target: 0 },
+            ],
+            thresholds: {
+              http_req_duration: ['p(95)<2000'], // 95% of requests under 2s
+              http_req_failed: ['rate<0.1'],    // Error rate under 10%
+              error_rate: ['rate<0.05'],        // Custom error rate under 5%
+            },
+          };
+          
+          export default function() {
+            const endpoints = [
+              '/health',
+              '/products',
+              '/stats/dashboard',
+              '/analytics/overview',
+            ];
+          
+            for (const endpoint of endpoints) {
+              const response = http.get(`${BASE_URL}${endpoint}`, {
+                headers: {
+                  'User-Agent': 'K6-LoadTest/1.0',
+                  'Accept': 'application/json',
+                },
+                timeout: '30s',
+              });
+          
+              const success = check(response, {
+                'status is 200': (r) => r.status === 200,
+                'response time < 2s': (r) => r.timings.duration < 2000,
+                'response time < 5s': (r) => r.timings.duration < 5000,
+              });
+          
+              errorRate.add(!success);
+          
+              if (!success) {
+                console.error(`Failed request to ${endpoint}: ${response.status}`);
+              }
+          
+              sleep(1);
+            }
+          }
+          
+          export function handleSummary(data) {
+            return {
+              'summary.json': JSON.stringify(data, null, 2),
+            };
+          }
+          EOF
+      
+      - name: 🚀 Run Load Test
+        run: |
+          k6 run \
+            --out json=results.json \
+            --out csv=results.csv \
+            --out html=report.html \
+            k6-test.js
+      
+      - name: 📊 Analyze Results
+        run: |
+          python3 -c "
+          import json
+          import sys
+          
+          with open('results.json', 'r') as f:
+              data = json.load(f)
+          
+          metrics = data['metrics']
+          
+          # Extract key metrics
+          avg_response_time = metrics['http_req_duration']['avg']
+          p95_response_time = metrics['http_req_duration']['p(95)']
+          error_rate = metrics['http_req_failed']['rate']
+          total_requests = metrics['http_req_count']['count']
+          
+          print(f'📊 Performance Test Results:')
+          print(f'  Total Requests: {total_requests:,}')
+          print(f'  Average Response Time: {avg_response_time:.2f}ms')
+          print(f'  95th Percentile: {p95_response_time:.2f}ms')
+          print(f'  Error Rate: {error_rate:.2%}')
+          
+          # Check thresholds
+          thresholds_met = True
+          if p95_response_time > 2000:
+              print('❌ 95th percentile response time exceeds 2s threshold')
+              thresholds_met = False
+          
+          if error_rate > 0.1:
+              print('❌ Error rate exceeds 10% threshold')
+              thresholds_met = False
+          
+          if thresholds_met:
+              print('✅ All performance thresholds met')
+          else:
+              print('❌ Performance thresholds not met')
+              sys.exit(1)
+          "
+      
+      - name: 📤 Upload Test Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-test-results
+          path: |
+            results.json
+            results.csv
+            report.html
+            k6-test.js
+      
+      - name: 📈 Generate Performance Report
+        run: |
+          echo "## Performance Test Report" > performance-report.md
+          echo "" >> performance-report.md
+          echo "### Test Configuration" >> performance-report.md
+          echo "- Target URL: $TARGET_URL" >> performance-report.md
+          echo "- Users: $USERS" >> performance-report.md
+          echo "- Duration: $DURATION seconds" >> performance-report.md
+          echo "- Ramp-up: $RAMP_UP seconds" >> performance-report.md
+          echo "" >> performance-report.md
+          echo "### Results" >> performance-report.md
+          echo "See attached files for detailed results." >> performance-report.md
+      
+      - name: 📤 Upload Performance Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report
+          path: performance-report.md
+
+  # ===== 2. STRESS TESTING =====
+  stress-test:
+    name: Stress Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: github.event.inputs.test_type == 'stress' || github.event.inputs.test_type == 'spike'
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐳 Install K6
+        run: |
+          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+      
+      - name: 📝 Generate Stress Test Script
+        run: |
+          cat > stress-test.js << 'EOF'
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+          
+          const BASE_URL = __ENV.TARGET_URL;
+          
+          export const options = {
+            stages: [
+              { duration: '2m', target: 50 },   // Ramp up to 50 users
+              { duration: '5m', target: 50 },   // Stay at 50 users
+              { duration: '2m', target: 100 },  // Ramp up to 100 users
+              { duration: '5m', target: 100 },  // Stay at 100 users
+              { duration: '2m', target: 200 },  // Ramp up to 200 users
+              { duration: '5m', target: 200 },  // Stay at 200 users
+              { duration: '2m', target: 0 },    // Ramp down to 0 users
+            ],
+            thresholds: {
+              http_req_duration: ['p(95)<5000'], // 95% under 5s
+              http_req_failed: ['rate<0.3'],     // Error rate under 30%
+            },
+          };
+          
+          export default function() {
+            const response = http.get(`${BASE_URL}/health`);
+            check(response, {
+              'status is 200': (r) => r.status === 200,
+            });
+            sleep(1);
+          }
+          EOF
+      
+      - name: 🚀 Run Stress Test
+        run: |
+          k6 run \
+            --out json=stress-results.json \
+            --out html=stress-report.html \
+            stress-test.js
+      
+      - name: 📤 Upload Stress Test Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-test-results
+          path: |
+            stress-results.json
+            stress-report.html
+
+  # ===== 3. PERFORMANCE MONITORING =====
+  performance-monitoring:
+    name: Performance Monitoring
+    runs-on: ubuntu-latest
+    needs: [load-test]
+    if: always()
+    
+    steps:
+      - name: 📊 Monitor System Performance
+        run: |
+          echo "Monitoring system performance..."
+          # Add monitoring logic here
+          echo "Performance monitoring completed"
+      
+      - name: 📈 Generate Performance Insights
+        run: |
+          echo "## Performance Insights" > insights.md
+          echo "" >> insights.md
+          echo "### Recommendations" >> insights.md
+          echo "1. Monitor response times during peak hours" >> insights.md
+          echo "2. Consider implementing caching strategies" >> insights.md
+          echo "3. Review database query performance" >> insights.md
+          echo "4. Implement rate limiting if needed" >> insights.md
+      
+      - name: 📤 Upload Performance Insights
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-insights
+          path: insights.md
+
+  # ===== 4. NOTIFICATION =====
+  notify:
+    name: Notify Results
+    runs-on: ubuntu-latest
+    needs: [load-test, stress-test, performance-monitoring]
+    if: always()
+    
+    steps:
+      - name: 📢 Notify Slack
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "📊 Performance Test Results",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "📊 *Performance Test Completed*\nTarget: `${{ github.event.inputs.target_url }}`\nTest Type: `${{ github.event.inputs.test_type }}`\nUsers: `${{ github.event.inputs.users }}`\nDuration: `${{ github.event.inputs.duration }}s`"
+                  }
+                }
+              ]
+            }

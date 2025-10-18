@@ -1,0 +1,325 @@
+# ===== SECURITY SCANNING WORKFLOW =====
+# Comprehensive security scanning and vulnerability assessment
+
+name: Security Scanning
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run security scans daily at 3 AM
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Type of security scan'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - dependencies
+          - secrets
+          - containers
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # ===== 1. DEPENDENCY SCANNING =====
+  dependency-scan:
+    name: Dependency Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: 📦 Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install safety pip-audit
+          pip install -r requirements.txt
+      
+      - name: 🔍 Run Safety Check
+        run: |
+          safety check --json --output safety-report.json
+          safety check --short-report
+      
+      - name: 🔍 Run pip-audit
+        run: |
+          pip-audit --format=json --output=pip-audit-report.json
+          pip-audit --format=text
+      
+      - name: 🔍 Dependency Review
+        uses: actions/dependency-review-action@v4
+        if: github.event_name == 'pull_request'
+      
+      - name: 📤 Upload Dependency Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-security-reports
+          path: |
+            safety-report.json
+            pip-audit-report.json
+
+  # ===== 2. SECRETS SCANNING =====
+  secrets-scan:
+    name: Secrets Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history for better secret detection
+      
+      - name: 🔍 Run TruffleHog
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+      
+      - name: 🔍 Run GitLeaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 🔍 Run Secret Scanner
+        run: |
+          pip install detect-secrets
+          detect-secrets scan --all-files --baseline .secrets.baseline
+          detect-secrets audit .secrets.baseline
+
+  # ===== 3. CODE SECURITY SCANNING =====
+  code-security:
+    name: Code Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: 📦 Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install bandit semgrep
+          pip install -r requirements.txt
+      
+      - name: 🔍 Run Bandit Security Check
+        run: |
+          bandit -r backend/ -f json -o bandit-report.json
+          bandit -r backend/ -f txt
+      
+      - name: 🔍 Run Semgrep
+        run: |
+          semgrep --config=auto --json --output=semgrep-report.json backend/
+          semgrep --config=auto backend/
+      
+      - name: 🔍 Run CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          languages: python
+      
+      - name: 📤 Upload Security Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-security-reports
+          path: |
+            bandit-report.json
+            semgrep-report.json
+
+  # ===== 4. CONTAINER SECURITY SCANNING =====
+  container-security:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐳 Build Docker Image
+        run: |
+          docker build -f infra/Dockerfile -t zaman-assistant:security-test .
+      
+      - name: 🔍 Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'zaman-assistant:security-test'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: 🔍 Run Trivy with JSON output
+        run: |
+          trivy image --format json --output trivy-report.json zaman-assistant:security-test
+          trivy image --format table zaman-assistant:security-test
+      
+      - name: 🔍 Run Docker Scout
+        run: |
+          docker scout cves zaman-assistant:security-test
+      
+      - name: 📤 Upload Container Security Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-security-reports
+          path: |
+            trivy-results.sarif
+            trivy-report.json
+      
+      - name: 📤 Upload Trivy Results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ===== 5. INFRASTRUCTURE SECURITY =====
+  infrastructure-security:
+    name: Infrastructure Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🔍 Run Checkov
+        run: |
+          pip install checkov
+          checkov -d infra/ --framework terraform --output json --output-file-path checkov-report.json
+          checkov -d infra/ --framework dockerfile --output json --output-file-path checkov-docker-report.json
+          checkov -d infra/ --framework kubernetes --output json --output-file-path checkov-k8s-report.json
+      
+      - name: 🔍 Run TFSec
+        run: |
+          wget https://github.com/aquasecurity/tfsec/releases/latest/download/tfsec-linux-amd64
+          chmod +x tfsec-linux-amd64
+          ./tfsec-linux-amd64 infra/ --format json --out tfsec-report.json
+          ./tfsec-linux-amd64 infra/ --format table
+      
+      - name: 📤 Upload Infrastructure Security Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: infrastructure-security-reports
+          path: |
+            checkov-report.json
+            checkov-docker-report.json
+            checkov-k8s-report.json
+            tfsec-report.json
+
+  # ===== 6. SECURITY SUMMARY =====
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, secrets-scan, code-security, container-security, infrastructure-security]
+    if: always()
+    
+    steps:
+      - name: 📊 Generate Security Summary
+        run: |
+          echo "## Security Scan Summary" > security-summary.md
+          echo "" >> security-summary.md
+          echo "### Scan Results" >> security-summary.md
+          echo "- Dependency Scan: ${{ needs.dependency-scan.result }}" >> security-summary.md
+          echo "- Secrets Scan: ${{ needs.secrets-scan.result }}" >> security-summary.md
+          echo "- Code Security: ${{ needs.code-security.result }}" >> security-summary.md
+          echo "- Container Security: ${{ needs.container-security.result }}" >> security-summary.md
+          echo "- Infrastructure Security: ${{ needs.infrastructure-security.result }}" >> security-summary.md
+          echo "" >> security-summary.md
+          echo "### Recommendations" >> security-summary.md
+          echo "1. Review and fix any high/critical vulnerabilities" >> security-summary.md
+          echo "2. Update dependencies with known vulnerabilities" >> security-summary.md
+          echo "3. Implement security best practices in code" >> security-summary.md
+          echo "4. Regular security scanning and monitoring" >> security-summary.md
+      
+      - name: 📤 Upload Security Summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-summary
+          path: security-summary.md
+      
+      - name: 📢 Notify Security Results
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "🔒 Security Scan Results",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "🔒 *Security Scan Completed*\nDependencies: `${{ needs.dependency-scan.result }}`\nSecrets: `${{ needs.secrets-scan.result }}`\nCode: `${{ needs.code-security.result }}`\nContainer: `${{ needs.container-security.result }}`\nInfrastructure: `${{ needs.infrastructure-security.result }}`"
+                  }
+                }
+              ]
+            }
+
+  # ===== 7. SECURITY GATES =====
+  security-gates:
+    name: Security Gates
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, secrets-scan, code-security, container-security, infrastructure-security]
+    if: always()
+    
+    steps:
+      - name: 🚦 Check Security Gates
+        run: |
+          echo "Checking security gates..."
+          
+          # Check if all security scans passed
+          if [[ "${{ needs.dependency-scan.result }}" != "success" ]]; then
+            echo "❌ Dependency scan failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.secrets-scan.result }}" != "success" ]]; then
+            echo "❌ Secrets scan failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.code-security.result }}" != "success" ]]; then
+            echo "❌ Code security scan failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.container-security.result }}" != "success" ]]; then
+            echo "❌ Container security scan failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.infrastructure-security.result }}" != "success" ]]; then
+            echo "❌ Infrastructure security scan failed"
+            exit 1
+          fi
+          
+          echo "✅ All security gates passed!"
+      
+      - name: 📢 Notify Security Gates Status
+        if: always()
+        run: |
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "✅ Security gates passed - deployment can proceed"
+          else
+            echo "❌ Security gates failed - deployment blocked"
+          fi

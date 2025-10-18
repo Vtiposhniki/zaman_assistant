@@ -1,0 +1,449 @@
+# ===== MONITORING & ALERTING WORKFLOW =====
+# Health checks, monitoring setup, and alerting configuration
+
+name: Monitoring & Alerting
+
+on:
+  push:
+    branches: [main, develop]
+  schedule:
+    # Run health checks every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      check_type:
+        description: 'Type of monitoring check'
+        required: true
+        default: 'health'
+        type: choice
+        options:
+          - health
+          - performance
+          - security
+          - all
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # ===== 1. HEALTH CHECKS =====
+  health-checks:
+    name: Health Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: 📦 Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install httpx requests
+      
+      - name: 🔍 Check Staging Health
+        run: |
+          python3 -c "
+          import httpx
+          import sys
+          import json
+          
+          def check_endpoint(url, name, timeout=10):
+              try:
+                  response = httpx.get(url, timeout=timeout)
+                  return {
+                      'name': name,
+                      'url': url,
+                      'status_code': response.status_code,
+                      'response_time': response.elapsed.total_seconds(),
+                      'healthy': response.status_code == 200,
+                      'error': None
+                  }
+              except Exception as e:
+                  return {
+                      'name': name,
+                      'url': url,
+                      'status_code': None,
+                      'response_time': None,
+                      'healthy': False,
+                      'error': str(e)
+                  }
+          
+          # Check staging environment
+          staging_checks = [
+              ('Staging Health', 'https://staging.zamanbank.kz/health'),
+              ('Staging Products', 'https://staging.zamanbank.kz/products'),
+              ('Staging Analytics', 'https://staging.zamanbank.kz/analytics/overview'),
+          ]
+          
+          results = []
+          for name, url in staging_checks:
+              result = check_endpoint(url, name)
+              results.append(result)
+              print(f'{'✅' if result['healthy'] else '❌'} {name}: {result['status_code']} ({result['response_time']:.2f}s)')
+          
+          # Save results
+          with open('staging-health.json', 'w') as f:
+              json.dump(results, f, indent=2)
+          
+          # Check if any checks failed
+          failed_checks = [r for r in results if not r['healthy']]
+          if failed_checks:
+              print(f'❌ {len(failed_checks)} health checks failed')
+              sys.exit(1)
+          else:
+              print('✅ All staging health checks passed')
+          "
+      
+      - name: 🔍 Check Production Health
+        run: |
+          python3 -c "
+          import httpx
+          import sys
+          import json
+          
+          def check_endpoint(url, name, timeout=10):
+              try:
+                  response = httpx.get(url, timeout=timeout)
+                  return {
+                      'name': name,
+                      'url': url,
+                      'status_code': response.status_code,
+                      'response_time': response.elapsed.total_seconds(),
+                      'healthy': response.status_code == 200,
+                      'error': None
+                  }
+              except Exception as e:
+                  return {
+                      'name': name,
+                      'url': url,
+                      'status_code': None,
+                      'response_time': None,
+                      'healthy': False,
+                      'error': str(e)
+                  }
+          
+          # Check production environment
+          production_checks = [
+              ('Production Health', 'https://api.zamanbank.kz/health'),
+              ('Production Products', 'https://api.zamanbank.kz/products'),
+              ('Production Analytics', 'https://api.zamanbank.kz/analytics/overview'),
+          ]
+          
+          results = []
+          for name, url in production_checks:
+              result = check_endpoint(url, name)
+              results.append(result)
+              print(f'{'✅' if result['healthy'] else '❌'} {name}: {result['status_code']} ({result['response_time']:.2f}s)')
+          
+          # Save results
+          with open('production-health.json', 'w') as f:
+              json.dump(results, f, indent=2)
+          
+          # Check if any checks failed
+          failed_checks = [r for r in results if not r['healthy']]
+          if failed_checks:
+              print(f'❌ {len(failed_checks)} health checks failed')
+              sys.exit(1)
+          else:
+              print('✅ All production health checks passed')
+          "
+      
+      - name: 📤 Upload Health Check Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-check-results
+          path: |
+            staging-health.json
+            production-health.json
+
+  # ===== 2. PERFORMANCE MONITORING =====
+  performance-monitoring:
+    name: Performance Monitoring
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: 📦 Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install httpx requests psutil
+      
+      - name: 📊 Monitor Performance Metrics
+        run: |
+          python3 -c "
+          import httpx
+          import time
+          import json
+          import psutil
+          
+          def measure_performance(url, name, iterations=5):
+              response_times = []
+              success_count = 0
+              
+              for i in range(iterations):
+                  try:
+                      start_time = time.time()
+                      response = httpx.get(url, timeout=10)
+                      end_time = time.time()
+                      
+                      response_time = end_time - start_time
+                      response_times.append(response_time)
+                      
+                      if response.status_code == 200:
+                          success_count += 1
+                      
+                      time.sleep(1)  # Wait between requests
+                  except Exception as e:
+                      print(f'Error in {name}: {e}')
+              
+              if response_times:
+                  avg_response_time = sum(response_times) / len(response_times)
+                  max_response_time = max(response_times)
+                  min_response_time = min(response_times)
+                  success_rate = success_count / iterations
+              else:
+                  avg_response_time = 0
+                  max_response_time = 0
+                  min_response_time = 0
+                  success_rate = 0
+              
+              return {
+                  'name': name,
+                  'url': url,
+                  'avg_response_time': avg_response_time,
+                  'max_response_time': max_response_time,
+                  'min_response_time': min_response_time,
+                  'success_rate': success_rate,
+                  'iterations': iterations
+              }
+          
+          # Monitor staging performance
+          staging_endpoints = [
+              ('Staging Health', 'https://staging.zamanbank.kz/health'),
+              ('Staging Products', 'https://staging.zamanbank.kz/products'),
+              ('Staging Analytics', 'https://staging.zamanbank.kz/analytics/overview'),
+          ]
+          
+          staging_results = []
+          for name, url in staging_endpoints:
+              result = measure_performance(url, name)
+              staging_results.append(result)
+              print(f'📊 {name}:')
+              print(f'  Avg Response Time: {result['avg_response_time']:.2f}s')
+              print(f'  Max Response Time: {result['max_response_time']:.2f}s')
+              print(f'  Success Rate: {result['success_rate']:.2%}')
+          
+          # Monitor production performance
+          production_endpoints = [
+              ('Production Health', 'https://api.zamanbank.kz/health'),
+              ('Production Products', 'https://api.zamanbank.kz/products'),
+              ('Production Analytics', 'https://api.zamanbank.kz/analytics/overview'),
+          ]
+          
+          production_results = []
+          for name, url in production_endpoints:
+              result = measure_performance(url, name)
+              production_results.append(result)
+              print(f'📊 {name}:')
+              print(f'  Avg Response Time: {result['avg_response_time']:.2f}s')
+              print(f'  Max Response Time: {result['max_response_time']:.2f}s')
+              print(f'  Success Rate: {result['success_rate']:.2%}')
+          
+          # Save results
+          with open('staging-performance.json', 'w') as f:
+              json.dump(staging_results, f, indent=2)
+          
+          with open('production-performance.json', 'w') as f:
+              json.dump(production_results, f, indent=2)
+          
+          # Check performance thresholds
+          staging_issues = []
+          production_issues = []
+          
+          for result in staging_results:
+              if result['avg_response_time'] > 2.0:
+                  staging_issues.append(f'{result['name']}: Avg response time {result['avg_response_time']:.2f}s > 2.0s')
+              if result['success_rate'] < 0.95:
+                  staging_issues.append(f'{result['name']}: Success rate {result['success_rate']:.2%} < 95%')
+          
+          for result in production_results:
+              if result['avg_response_time'] > 2.0:
+                  production_issues.append(f'{result['name']}: Avg response time {result['avg_response_time']:.2f}s > 2.0s')
+              if result['success_rate'] < 0.95:
+                  production_issues.append(f'{result['name']}: Success rate {result['success_rate']:.2%} < 95%')
+          
+          if staging_issues:
+              print('⚠️ Staging performance issues:')
+              for issue in staging_issues:
+                  print(f'  - {issue}')
+          
+          if production_issues:
+              print('⚠️ Production performance issues:')
+              for issue in production_issues:
+                  print(f'  - {issue}')
+          
+          if staging_issues or production_issues:
+              sys.exit(1)
+          else:
+              print('✅ All performance metrics within acceptable ranges')
+          "
+      
+      - name: 📤 Upload Performance Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-monitoring-results
+          path: |
+            staging-performance.json
+            production-performance.json
+
+  # ===== 3. SECURITY MONITORING =====
+  security-monitoring:
+    name: Security Monitoring
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: 📦 Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install safety bandit
+      
+      - name: 🔍 Quick Security Scan
+        run: |
+          echo "Running quick security checks..."
+          
+          # Check for known vulnerabilities in dependencies
+          safety check --short-report
+          
+          # Check for security issues in code
+          bandit -r backend/ -f json -o security-scan.json
+          bandit -r backend/ -f txt
+          
+          # Check for secrets in code
+          if command -v detect-secrets &> /dev/null; then
+              detect-secrets scan --all-files --baseline .secrets.baseline
+          else
+              echo "detect-secrets not installed, skipping secrets scan"
+          fi
+      
+      - name: 📤 Upload Security Scan Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-monitoring-results
+          path: security-scan.json
+
+  # ===== 4. ALERTING =====
+  alerting:
+    name: Alerting
+    runs-on: ubuntu-latest
+    needs: [health-checks, performance-monitoring, security-monitoring]
+    if: always()
+    
+    steps:
+      - name: 📊 Generate Monitoring Summary
+        run: |
+          echo "## Monitoring Summary" > monitoring-summary.md
+          echo "" >> monitoring-summary.md
+          echo "### Health Checks" >> monitoring-summary.md
+          echo "- Status: ${{ needs.health-checks.result }}" >> monitoring-summary.md
+          echo "" >> monitoring-summary.md
+          echo "### Performance Monitoring" >> monitoring-summary.md
+          echo "- Status: ${{ needs.performance-monitoring.result }}" >> monitoring-summary.md
+          echo "" >> monitoring-summary.md
+          echo "### Security Monitoring" >> monitoring-summary.md
+          echo "- Status: ${{ needs.security-monitoring.result }}" >> monitoring-summary.md
+          echo "" >> monitoring-summary.md
+          echo "### Recommendations" >> monitoring-summary.md
+          echo "1. Monitor response times and error rates" >> monitoring-summary.md
+          echo "2. Set up automated alerts for critical issues" >> monitoring-summary.md
+          echo "3. Regular security scanning and updates" >> monitoring-summary.md
+          echo "4. Performance optimization based on metrics" >> monitoring-summary.md
+      
+      - name: 📤 Upload Monitoring Summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-summary
+          path: monitoring-summary.md
+      
+      - name: 📢 Send Alerts
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "📊 Monitoring Results",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "📊 *Monitoring Check Completed*\nHealth: `${{ needs.health-checks.result }}`\nPerformance: `${{ needs.performance-monitoring.result }}`\nSecurity: `${{ needs.security-monitoring.result }}`\nTime: `$(date)`"
+                  }
+                }
+              ]
+            }
+
+  # ===== 5. MONITORING GATES =====
+  monitoring-gates:
+    name: Monitoring Gates
+    runs-on: ubuntu-latest
+    needs: [health-checks, performance-monitoring, security-monitoring]
+    if: always()
+    
+    steps:
+      - name: 🚦 Check Monitoring Gates
+        run: |
+          echo "Checking monitoring gates..."
+          
+          # Check if all monitoring checks passed
+          if [[ "${{ needs.health-checks.result }}" != "success" ]]; then
+            echo "❌ Health checks failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.performance-monitoring.result }}" != "success" ]]; then
+            echo "❌ Performance monitoring failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.security-monitoring.result }}" != "success" ]]; then
+            echo "❌ Security monitoring failed"
+            exit 1
+          fi
+          
+          echo "✅ All monitoring gates passed!"
+      
+      - name: 📢 Notify Monitoring Gates Status
+        if: always()
+        run: |
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "✅ Monitoring gates passed - system is healthy"
+          else
+            echo "❌ Monitoring gates failed - system issues detected"
+          fi

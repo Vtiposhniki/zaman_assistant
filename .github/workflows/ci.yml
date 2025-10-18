@@ -1,0 +1,292 @@
+# ===== CONTINUOUS INTEGRATION WORKFLOW =====
+# Fast, parallel execution for code quality and testing
+
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop, feature/*]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+
+jobs:
+  # ===== 1. CODE QUALITY (Parallel) =====
+  lint-python:
+    name: Python Linting
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: 📦 Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install flake8 black isort mypy bandit safety
+          pip install -r requirements.txt
+      
+      - name: 🔍 Run Flake8
+        run: flake8 backend/ --count --select=E9,F63,F7,F82 --show-source --statistics
+      
+      - name: 🎨 Check Black Formatting
+        run: black --check backend/
+      
+      - name: 📐 Check Import Sorting
+        run: isort --check-only backend/
+      
+      - name: 🔎 Run MyPy Type Checking
+        run: mypy backend/ --ignore-missing-imports --strict-optional
+
+  lint-frontend:
+    name: Frontend Linting
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: 📦 Install Dependencies
+        working-directory: frontend
+        run: npm ci
+      
+      - name: 🔍 Run ESLint
+        working-directory: frontend
+        run: npm run lint
+      
+      - name: 🎨 Check Prettier
+        working-directory: frontend
+        run: npm run format:check
+
+  # ===== 2. SECURITY SCANNING (Parallel) =====
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: 🔐 Run Bandit Security Check
+        run: |
+          pip install bandit
+          bandit -r backend/ -f json -o bandit-report.json
+      
+      - name: 📊 Run Safety Check
+        run: |
+          pip install safety
+          safety check --json --output safety-report.json
+      
+      - name: 🔍 Dependency Review
+        uses: actions/dependency-review-action@v4
+        if: github.event_name == 'pull_request'
+      
+      - name: 📤 Upload Security Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+
+  # ===== 3. UNIT TESTS (Parallel) =====
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: 📦 Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-asyncio pytest-cov pytest-xdist httpx
+          pip install -r requirements.txt
+      
+      - name: 🔧 Setup Test Environment
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
+          MOCK_MODE: true
+        run: |
+          cd backend
+          python database.py
+      
+      - name: 🧪 Run Unit Tests
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
+          MOCK_MODE: true
+          OPENAI_HUB_KEY: test_key
+        run: |
+          cd backend
+          pytest tests/unit/ -v --cov=. --cov-report=xml --cov-report=html --cov-report=term -n auto
+      
+      - name: 📊 Upload Coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./backend/coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  # ===== 4. INTEGRATION TESTS =====
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [unit-tests]
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: 📦 Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-asyncio pytest-cov httpx
+          pip install -r requirements.txt
+      
+      - name: 🔧 Setup Test Environment
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          MOCK_MODE: false
+        run: |
+          cd backend
+          python database.py
+      
+      - name: 🧪 Run Integration Tests
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          MOCK_MODE: false
+          OPENAI_HUB_KEY: test_key
+        run: |
+          cd backend
+          pytest tests/integration/ -v --cov=. --cov-report=xml --cov-report=html --cov-report=term
+
+  # ===== 5. QUALITY GATES =====
+  quality-gates:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    needs: [lint-python, lint-frontend, security-scan, unit-tests, integration-tests]
+    if: always()
+    
+    steps:
+      - name: 📊 Check Quality Gates
+        run: |
+          echo "Checking quality gates..."
+          
+          # Check if all required jobs passed
+          if [[ "${{ needs.lint-python.result }}" != "success" ]]; then
+            echo "❌ Python linting failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.lint-frontend.result }}" != "success" ]]; then
+            echo "❌ Frontend linting failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.security-scan.result }}" != "success" ]]; then
+            echo "❌ Security scan failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.unit-tests.result }}" != "success" ]]; then
+            echo "❌ Unit tests failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.integration-tests.result }}" != "success" ]]; then
+            echo "❌ Integration tests failed"
+            exit 1
+          fi
+          
+          echo "✅ All quality gates passed!"
+      
+      - name: 📢 Notify Quality Gates Status
+        if: always()
+        run: |
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "✅ Quality gates passed - ready for deployment"
+          else
+            echo "❌ Quality gates failed - deployment blocked"
+          fi
