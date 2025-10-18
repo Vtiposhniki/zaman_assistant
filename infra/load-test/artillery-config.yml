@@ -1,0 +1,67 @@
+# ===== ARTILLERY TEST =====
+# File: infra/load-tests/artillery-config.yml
+
+config:
+  target: "https://staging.zamanbank.kz"
+  phases:
+    - duration: 60
+      arrivalRate: 5
+      name: "Warm up"
+    - duration: 300
+      arrivalRate: 20
+      name: "Sustained load"
+    - duration: 60
+      arrivalRate: 50
+      name: "Peak load"
+  
+  variables:
+    target_amounts:
+      - 500000
+      - 1000000
+      - 2000000
+      - 5000000
+  
+  processor: "./load-test-processor.js"
+
+scenarios:
+  - name: "User Journey: Create Goal and Chat"
+    flow:
+      - get:
+          url: "/health"
+      
+      - think: 2
+      
+      - get:
+          url: "/products"
+          capture:
+            - json: "$[0].id"
+              as: "productId"
+      
+      - think: 3
+      
+      - post:
+          url: "/goals/create"
+          json:
+            name: "Artillery Test Goal"
+            target_amount: "{{ $randomNumber(500000, 5000000) }}"
+            current_savings: "{{ $randomNumber(0, 500000) }}"
+            target_date: "2026-12-31"
+            income: 500000
+            expenses: 300000
+          capture:
+            - json: "$.goal_id"
+              as: "goalId"
+      
+      - think: 2
+      
+      - post:
+          url: "/chat"
+          json:
+            messages:
+              - role: "user"
+                content: "Помоги с планом накоплений"
+      
+      - think: 3
+      
+      - get:
+          url: "/stats/dashboard"

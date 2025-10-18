@@ -63,8 +63,8 @@ COPY --from=builder /opt/venv /opt/venv
 
 # ✅ Копирование backend структуры
 # Копируем все Python файлы в корень /app
-COPY backend/*.py /app/
-COPY backend/services/ /app/services/
+COPY backend/ /app/backend/
+
 COPY backend/products.json /app/
 COPY requirements.txt /app/
 
