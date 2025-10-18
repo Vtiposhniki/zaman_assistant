@@ -1,0 +1,394 @@
+name: Zaman Assistant CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  release:
+    types: [created]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ===== 1. LINT & CODE QUALITY =====
+  lint:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: 📦 Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install flake8 black isort mypy
+          pip install -r requirements.txt
+      
+      - name: 🔍 Run Flake8
+        run: |
+          flake8 backend/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 backend/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      
+      - name: 🎨 Check Black Formatting
+        run: black --check backend/
+      
+      - name: 📐 Check Import Sorting
+        run: isort --check-only backend/
+      
+      - name: 🔎 Run MyPy Type Checking
+        run: mypy backend/ --ignore-missing-imports || true
+
+  # ===== 2. SECURITY SCAN =====
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: 🔐 Run Bandit Security Check
+        run: |
+          pip install bandit
+          bandit -r backend/ -f json -o bandit-report.json || true
+      
+      - name: 📊 Run Safety Check
+        run: |
+          pip install safety
+          safety check --json || true
+      
+      - name: 🔍 Dependency Review
+        uses: actions/dependency-review-action@v4
+        if: github.event_name == 'pull_request'
+
+  # ===== 3. TESTS =====
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: 📦 Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-asyncio pytest-cov httpx
+          pip install -r requirements.txt
+      
+      - name: 🔧 Setup Test Environment
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
+          MOCK_MODE: true
+        run: |
+          cd backend
+          python database.py
+      
+      - name: 🧪 Run Tests with Coverage
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
+          MOCK_MODE: true
+          OPENAI_HUB_KEY: test_key
+        run: |
+          cd backend
+          pytest tests/ -v --cov=. --cov-report=xml --cov-report=html --cov-report=term
+      
+      - name: 📊 Upload Coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./backend/coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  # ===== 4. BUILD DOCKER IMAGE =====
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [lint, security, test]
+    if: github.event_name == 'push'
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: 🔐 Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 📝 Extract Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+      
+      - name: 🏗️ Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./infra/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ github.sha }}
+
+  # ===== 5. DEPLOY TO STAGING =====
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://staging.zamanbank.kz
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+      
+      - name: 🚀 Deploy to ECS
+        run: |
+          aws ecs update-service \
+            --cluster zaman-staging \
+            --service zaman-backend \
+            --force-new-deployment
+      
+      - name: ⏳ Wait for Deployment
+        run: |
+          aws ecs wait services-stable \
+            --cluster zaman-staging \
+            --services zaman-backend
+      
+      - name: 🔍 Health Check
+        run: |
+          max_attempts=30
+          attempt=0
+          until curl -f https://staging.zamanbank.kz/health || [ $attempt -eq $max_attempts ]; do
+            echo "Waiting for service to be healthy... ($attempt/$max_attempts)"
+            sleep 10
+            attempt=$((attempt+1))
+          done
+          
+          if [ $attempt -eq $max_attempts ]; then
+            echo "❌ Health check failed after $max_attempts attempts"
+            exit 1
+          fi
+          echo "✅ Service is healthy!"
+
+  # ===== 6. DEPLOY TO PRODUCTION =====
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name == 'release'
+    environment:
+      name: production
+      url: https://api.zamanbank.kz
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+      
+      - name: 📦 Create Backup
+        run: |
+          aws s3 cp s3://zaman-backups/latest.sql \
+            s3://zaman-backups/pre-deploy-$(date +%Y%m%d-%H%M%S).sql
+      
+      - name: 🚀 Blue-Green Deployment
+        run: |
+          # Deploy to green environment
+          aws ecs update-service \
+            --cluster zaman-production \
+            --service zaman-backend-green \
+            --force-new-deployment
+          
+          # Wait for green to be stable
+          aws ecs wait services-stable \
+            --cluster zaman-production \
+            --services zaman-backend-green
+          
+          # Health check on green
+          curl -f https://green.zamanbank.kz/health
+          
+          # Switch traffic to green
+          aws elbv2 modify-listener \
+            --listener-arn ${{ secrets.ALB_LISTENER_ARN }} \
+            --default-actions Type=forward,TargetGroupArn=${{ secrets.GREEN_TARGET_GROUP }}
+          
+          # Wait and verify
+          sleep 30
+          curl -f https://api.zamanbank.kz/health
+      
+      - name: 📢 Notify Slack
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "🚀 Zaman Assistant deployed to PRODUCTION",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "✅ *Deployment Successful*\nVersion: `${{ github.sha }}`\nEnvironment: Production"
+                  }
+                }
+              ]
+            }
+
+  # ===== 7. SMOKE TESTS =====
+  smoke-tests:
+    name: Run Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: github.event_name == 'release'
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: 📦 Install Dependencies
+        run: |
+          pip install httpx pytest
+      
+      - name: 🔥 Run Smoke Tests
+        env:
+          API_URL: https://api.zamanbank.kz
+        run: |
+          python -c "
+          import httpx
+          import sys
+          
+          base_url = '${{ env.API_URL }}'
+          
+          tests = [
+              ('Health Check', '/health'),
+              ('Products List', '/products'),
+              ('Stats Dashboard', '/stats/dashboard'),
+          ]
+          
+          failed = []
+          for name, endpoint in tests:
+              try:
+                  r = httpx.get(f'{base_url}{endpoint}', timeout=10)
+                  if r.status_code == 200:
+                      print(f'✅ {name}: OK')
+                  else:
+                      print(f'❌ {name}: HTTP {r.status_code}')
+                      failed.append(name)
+              except Exception as e:
+                  print(f'❌ {name}: {e}')
+                  failed.append(name)
+          
+          if failed:
+              print(f'\n❌ {len(failed)} tests failed: {failed}')
+              sys.exit(1)
+          else:
+              print('\n✅ All smoke tests passed!')
+          "
+
+  # ===== 8. ROLLBACK (Manual) =====
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    environment:
+      name: production
+    
+    steps:
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+      
+      - name: ⏪ Rollback to Blue
+        run: |
+          aws elbv2 modify-listener \
+            --listener-arn ${{ secrets.ALB_LISTENER_ARN }} \
+            --default-actions Type=forward,TargetGroupArn=${{ secrets.BLUE_TARGET_GROUP }}
+      
+      - name: 📢 Notify Slack
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "⏪ Rollback executed for Zaman Assistant"
+            }
