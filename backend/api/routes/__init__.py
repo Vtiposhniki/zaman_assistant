@@ -3,7 +3,7 @@
 Экспорт всех роутеров для удобного импорта в app.py.
 """
 from api.routes.goals import router as goals_router
-from api.routes.redis_goals import router as redis_goals_router
+# from api.routes.redis_goals import router as redis_goals_router
 from api.routes.chat import router as chat_router
 from api.routes.products import router as products_router
 from api.routes.analytics import router as analytics_router

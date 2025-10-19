@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./components/UI/animations.css";
 
 :root {
   --primary: #14b8a6;

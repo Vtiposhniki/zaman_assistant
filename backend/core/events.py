@@ -19,12 +19,12 @@ async def startup_handler():
     logger.info("🚀 Starting Zaman Assistant v3.1")
     
     # 1. Инициализация БД
-    try:
-        init_db()
-        logger.info("✅ Database initialized")
-    except Exception as e:
-        logger.error(f"❌ Database init failed: {e}")
-        raise
+    # try:
+    #     init_db()
+    #     logger.info("✅ Database initialized")
+    # except Exception as e:
+    #     logger.error(f"❌ Database init failed: {e}")
+    #     raise
     
     # 2. Загрузка продуктов и embeddings
     if PRODUCTS:
@@ -42,19 +42,19 @@ async def startup_handler():
     asyncio.create_task(services_manager.cache_manager.cleanup_task())
     logger.info("✅ Background tasks started")
     
-    # 5. Инициализация Redis Goals Service
-    try:
-        from api.routes.redis_goals import startup_redis_goals_service
-        await startup_redis_goals_service()
-        logger.info("✅ Redis Goals Service started")
-    except Exception as e:
-        logger.warning(f"⚠️ Redis Goals Service failed to start: {e}")
+    # # 5. Инициализация Redis Goals Service
+    # try:
+    #     from api.routes.redis_goals import startup_redis_goals_service
+    #     await startup_redis_goals_service()
+    #     logger.info("✅ Redis Goals Service started")
+    # except Exception as e:
+    #     logger.warning(f"⚠️ Redis Goals Service failed to start: {e}")
     
     # 6. Конфигурация
     logger.info(f"🔧 MOCK_MODE: {settings.MOCK_MODE}")
     logger.info(f"💾 Database: {settings.DATABASE_URL.split('?')[0]}")  # Hide credentials
     logger.info(f"🎤 Whisper: {'Enabled' if settings.WHISPER_ENABLED else 'Disabled'}")
-    logger.info(f"🔴 Redis: {settings.REDIS_URL}")
+    # logger.info(f"🔴 Redis: {settings.REDIS_URL}")
     
     logger.info("✅ Zaman Assistant ready!")
 

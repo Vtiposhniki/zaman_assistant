@@ -1,119 +1,194 @@
-// ============================================================
-// 📁 src/components/Chat/ChatView.jsx
-// ============================================================
-import React, { useState, useRef, useEffect } from 'react';
-import { Volume2 } from 'lucide-react';
-import { ChatMessage } from './ChatMessage';
-import { ChatInput } from './ChatInput';
-import { useAudioRecorder } from '../../hooks/useAudioRecorder';
-import { useTextToSpeech } from '../../hooks/useTextToSpeech';
+import React, { useState, useEffect, useRef } from 'react';
+import { MessageCircle } from 'lucide-react';
+import ChatMessages from './ChatMessages';
+import ChatInput from './ChatInput';
+import TypingIndicator from '../UI/TypingIndicator';
+import useWebSocket from '../../hooks/useWebSocket';
+import useVoiceChat from '../../hooks/useVoiceChat';
+import useChatHistory from '../../hooks/useChatHistory';
+import api from '../../services/api';
 
-export const ChatView = ({ chatService, chatMode, setChatMode }) => {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
+/**
+ * Основной компонент чата с поддержкой WebSocket и голосовых функций
+ */
+const ChatView = ({ chatMode = 'mentor', setChatMode }) => {
   const [loading, setLoading] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-  
+  const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef(null);
-  const { isRecording, startRecording, stopRecording } = useAudioRecorder();
-  const { isSpeaking, speak, stop, audioRef } = useTextToSpeech(chatService);
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  // История чата с автосохранением
+  const { messages, addMessage, setMessages } = useChatHistory(`zaman_chat_${chatMode}`);
 
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return;
-    
-    const userMsg = input.trim();
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
-    setInput('');
-    setLoading(true);
+  // WebSocket соединение
+  const wsUrl = api.getWebSocketUrl();
+  const { 
+    messages: wsMessages, 
+    sendMessage: sendWsMessage, 
+    connected: wsConnected 
+  } = useWebSocket(wsUrl);
 
-    try {
-      const data = await chatService.sendMessage(
-        [{ role: 'user', content: userMsg }],
-        1
-      );
-      
-      setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
-      
-      if (voiceEnabled && data.reply) {
-        await speak(data.reply);
-      }
-    } catch (err) {
-      console.error('Chat error:', err);
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'Ошибка подключения к серверу' 
-      }]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Голосовые функции
+  const {
+    isRecording,
+    isSpeaking,
+    voiceEnabled,
+    startRecording,
+    stopRecording,
+    speakText,
+    stopSpeaking,
+    toggleVoice,
+    sendAudioForTranscription,
+    audioRef
+  } = useVoiceChat({
+    onAudioRecorded: handleAudioRecorded,
+    onTranscriptionReceived: handleTranscriptionReceived,
+    onSpeakingStarted: () => console.log('Speaking started'),
+    onSpeakingEnded: () => console.log('Speaking ended')
+  });
 
-  const handleToggleRecording = async () => {
-    if (isRecording) {
-      const audioBlob = await stopRecording();
-      if (audioBlob) {
-        await sendAudioMessage(audioBlob);
-      }
-    } else {
-      try {
-        await startRecording();
-      } catch (err) {
-        alert('Не удалось получить доступ к микрофону');
-      }
-    }
-  };
-
-  const sendAudioMessage = async (audioBlob) => {
+  // Обработка записанного аудио
+  async function handleAudioRecorded(audioBlob) {
     setLoading(true);
     try {
-      const data = await chatService.sendAudioMessage(audioBlob, 1, 'ru');
+      const data = await sendAudioForTranscription(audioBlob);
       
       if (data.transcription) {
-        setMessages(prev => [...prev, { 
-          role: 'user', 
-          content: data.transcription.text || data.transcription 
-        }]);
+        // Добавляем транскрипцию как сообщение пользователя
+        const userMessage = {
+          role: 'user',
+          content: data.transcription,
+          timestamp: new Date().toISOString()
+        };
+        addMessage(userMessage);
+        
+        // Отправляем через WebSocket
+        sendWsMessage({
+          user_id: 1,
+          message: data.transcription,
+          chat_mode: chatMode
+        });
       }
       
-      if (data.reply || data.response?.text) {
-        const replyText = data.reply || data.response.text;
-        setMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: replyText 
-        }]);
+      if (data.reply) {
+        // Добавляем ответ ассистента
+        const assistantMessage = {
+          role: 'assistant',
+          content: data.reply,
+          timestamp: new Date().toISOString()
+        };
+        addMessage(assistantMessage);
         
+        // Озвучиваем ответ
         if (voiceEnabled) {
-          await speak(replyText);
+          await speakText(data.reply);
         }
       }
     } catch (err) {
-      console.error('Audio processing error:', err);
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'Ошибка обработки голосового сообщения' 
-      }]);
+      console.error('Ошибка обработки аудио:', err);
+      const errorMessage = {
+        role: 'assistant',
+        content: 'Ошибка обработки голосового сообщения',
+        timestamp: new Date().toISOString()
+      };
+      addMessage(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Обработка полученной транскрипции
+  function handleTranscriptionReceived(transcription) {
+    const userMessage = {
+      role: 'user',
+      content: transcription,
+      timestamp: new Date().toISOString()
+    };
+    addMessage(userMessage);
+  }
+
+  // Отправка текстового сообщения
+  const handleSendMessage = async (text) => {
+    if (!text.trim()) return;
+
+    setLoading(true);
+    
+    // Добавляем сообщение пользователя
+    const userMessage = {
+      role: 'user',
+      content: text,
+      timestamp: new Date().toISOString()
+    };
+    addMessage(userMessage);
+
+    try {
+      // Отправляем через WebSocket
+      const wsSuccess = sendWsMessage({
+        user_id: 1,
+        message: text,
+        chat_mode: chatMode
+      });
+
+      // Если WebSocket недоступен, используем HTTP API
+      if (!wsSuccess) {
+        const data = await api.sendChatMessage([userMessage], 1);
+        
+        if (data.reply) {
+          const assistantMessage = {
+            role: 'assistant',
+            content: data.reply,
+            timestamp: new Date().toISOString()
+          };
+          addMessage(assistantMessage);
+          
+          // Озвучиваем ответ
+          if (voiceEnabled) {
+            await speakText(data.reply);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Ошибка отправки сообщения:', err);
+      const errorMessage = {
+        role: 'assistant',
+        content: 'Ошибка подключения к серверу',
+        timestamp: new Date().toISOString()
+      };
+      addMessage(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleToggleVoice = () => {
-    setVoiceEnabled(!voiceEnabled);
-    if (isSpeaking) stop();
+  // Обработка сообщений от WebSocket
+  useEffect(() => {
+    if (wsMessages.length > 0) {
+      const lastMessage = wsMessages[wsMessages.length - 1];
+      
+      if (lastMessage.role === 'assistant') {
+        addMessage(lastMessage);
+        
+        // Озвучиваем ответ
+        if (voiceEnabled && lastMessage.content) {
+          speakText(lastMessage.content);
+        }
+      }
+    }
+  }, [wsMessages, voiceEnabled, speakText]);
+
+  // Режимы чата
+  const modeIcons = {
+    mentor: '🧘',
+    analyst: '💼',
+    friend: '💬',
+    tech: '🤖'
   };
 
-  const modeConfig = {
-    mentor: { icon: '🧘', name: 'Финансовый ментор' },
-    analyst: { icon: '💼', name: 'Финансовый аналитик' },
-    friend: { icon: '💬', name: 'Дружелюбный ассистент' },
-    tech: { icon: '🤖', name: 'Технический эксперт' }
+  const modeNames = {
+    mentor: 'Финансовый ментор',
+    analyst: 'Финансовый аналитик',
+    friend: 'Дружелюбный ассистент',
+    tech: 'Технический эксперт'
   };
-
-  const currentMode = modeConfig[chatMode] || modeConfig.mentor;
 
   return (
     <div style={{
@@ -124,7 +199,7 @@ export const ChatView = ({ chatService, chatMode, setChatMode }) => {
       padding: '2rem',
       background: 'linear-gradient(135deg, #f0fdfa 0%, #f0f9ff 100%)'
     }}>
-      {/* Sidebar */}
+      {/* Боковая панель */}
       <div style={{
         background: 'white',
         borderRadius: '16px',
@@ -147,26 +222,48 @@ export const ChatView = ({ chatService, chatMode, setChatMode }) => {
             margin: '0 auto 1.5rem',
             boxShadow: '0 10px 30px rgba(45, 154, 134, 0.2)'
           }}>
-            {currentMode.icon}
+            {modeIcons[chatMode] || '🧘'}
           </div>
           
           <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827', margin: '0 0 0.5rem 0' }}>
             Zaman Assistant
           </h2>
           <p style={{ fontSize: '14px', color: '#2D9A86', fontWeight: '600', margin: 0 }}>
-            {currentMode.name}
+            {modeNames[chatMode] || 'Финансовый ментор'}
           </p>
         </div>
 
-        <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '2px solid #e5e7eb' }}>
-          <h3 style={{ 
-            fontSize: '14px', 
-            fontWeight: '700', 
-            color: '#111827', 
-            marginBottom: '1rem', 
-            textTransform: 'uppercase', 
-            letterSpacing: '0.5px' 
+        {/* Статус соединения */}
+        <div style={{ 
+          marginTop: '1.5rem', 
+          padding: '0.75rem', 
+          background: wsConnected ? '#f0f9f7' : '#fef2f2', 
+          borderRadius: '8px', 
+          borderLeft: `4px solid ${wsConnected ? '#2D9A86' : '#ef4444'}` 
+        }}>
+          <p style={{ 
+            fontSize: '12px', 
+            color: wsConnected ? '#2D9A86' : '#ef4444', 
+            fontWeight: '600', 
+            margin: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
           }}>
+            <div style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: wsConnected ? '#2D9A86' : '#ef4444',
+              animation: wsConnected ? 'pulse 2s infinite' : 'none'
+            }} />
+            {wsConnected ? 'Подключено' : 'Отключено'}
+          </p>
+        </div>
+
+        {/* Выбор режима */}
+        <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '2px solid #e5e7eb' }}>
+          <h3 style={{ fontSize: '14px', fontWeight: '700', color: '#111827', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Режим общения
           </h3>
           <select
@@ -191,21 +288,15 @@ export const ChatView = ({ chatService, chatMode, setChatMode }) => {
           </select>
         </div>
 
-        <div style={{ 
-          marginTop: '2rem', 
-          padding: '1rem', 
-          background: '#f0f9f7', 
-          borderRadius: '8px', 
-          borderLeft: '4px solid #2D9A86' 
-        }}>
+        {/* Подсказка */}
+        <div style={{ marginTop: '2rem', padding: '1rem', background: '#f0f9f7', borderRadius: '8px', borderLeft: '4px solid #2D9A86' }}>
           <p style={{ fontSize: '13px', color: '#374151', lineHeight: '1.6', margin: 0 }}>
-            💡 <strong>Совет:</strong> Используйте микрофон для голосовых сообщений. 
-            Ассистент автоматически озвучит ответ.
+            💡 <strong>Совет:</strong> Используйте микрофон для голосовых сообщений. Ассистент автоматически озвучит ответ.
           </p>
         </div>
       </div>
 
-      {/* Chat Area */}
+      {/* Основная область чата */}
       <div style={{
         display: 'flex',
         flexDirection: 'column',
@@ -215,6 +306,7 @@ export const ChatView = ({ chatService, chatMode, setChatMode }) => {
         overflow: 'hidden',
         height: '85vh'
       }}>
+        {/* Заголовок чата */}
         <div style={{
           padding: '2rem',
           background: 'linear-gradient(135deg, #2D9A86, #14b8a6)',
@@ -229,95 +321,33 @@ export const ChatView = ({ chatService, chatMode, setChatMode }) => {
           </p>
         </div>
 
-        <div style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '2rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1.5rem',
-          background: 'linear-gradient(to bottom, #ffffff, #f9fdfb)'
-        }}>
-          {messages.length === 0 ? (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              textAlign: 'center',
-              color: '#9ca3af'
-            }}>
-              <div>
-                <div style={{ fontSize: '64px', marginBottom: '1rem' }}>💬</div>
-                <p style={{ fontSize: '18px', fontWeight: '500', margin: '0 0 0.5rem 0' }}>
-                  Ещё нет сообщений
-                </p>
-                <p style={{ fontSize: '14px', color: '#9ca3af' }}>
-                  Напишите текст или нажмите на микрофон 🎤
-                </p>
-              </div>
-            </div>
-          ) : (
-            messages.map((msg, i) => (
-              <ChatMessage 
-                key={i} 
-                message={msg} 
-                isUser={msg.role === 'user'} 
-              />
-            ))
-          )}
-          
-          {loading && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#6b7280' }}>
-              <div style={{ width: '12px', height: '12px', background: '#2D9A86', borderRadius: '50%', animation: 'bounce 1.4s infinite' }} />
-              <div style={{ width: '12px', height: '12px', background: '#2D9A86', borderRadius: '50%', animation: 'bounce 1.4s infinite 0.2s' }} />
-              <div style={{ width: '12px', height: '12px', background: '#2D9A86', borderRadius: '50%', animation: 'bounce 1.4s infinite 0.4s' }} />
-              <span style={{ marginLeft: '0.5rem', fontSize: '14px' }}>
-                {isRecording ? 'Распознаю речь...' : 'Ассистент думает...'}
-              </span>
-            </div>
-          )}
-          
-          {isSpeaking && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#2D9A86', fontSize: '14px' }}>
-              <Volume2 size={16} style={{ animation: 'pulse 1s infinite' }} />
-              <span>Озвучиваю ответ...</span>
-            </div>
-          )}
-          
-          <div ref={chatEndRef} />
-        </div>
-
-        <ChatInput
-          input={input}
-          setInput={setInput}
-          onSend={sendMessage}
-          isRecording={isRecording}
-          onToggleRecording={handleToggleRecording}
-          voiceEnabled={voiceEnabled}
-          onToggleVoice={handleToggleVoice}
-          isSpeaking={isSpeaking}
+        {/* Сообщения */}
+        <ChatMessages
+          messages={messages}
           loading={loading}
-          disabled={loading || isRecording}
+          isRecording={isRecording}
+          isSpeaking={isSpeaking}
+          isTyping={isTyping}
+          chatEndRef={chatEndRef}
+        />
+
+        {/* Ввод сообщений */}
+        <ChatInput
+          onSendMessage={handleSendMessage}
+          onStartRecording={startRecording}
+          onStopRecording={stopRecording}
+          onToggleVoice={toggleVoice}
+          isRecording={isRecording}
+          isSpeaking={isSpeaking}
+          voiceEnabled={voiceEnabled}
+          loading={loading}
         />
       </div>
 
+      {/* Скрытый audio элемент для воспроизведения речи */}
       <audio ref={audioRef} style={{ display: 'none' }} />
-
-      <style>{`
-        @keyframes slideIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes bounce {
-          0%, 80%, 100% { transform: translateY(0); }
-          40% { transform: translateY(-10px); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.8; transform: scale(1.05); }
-        }
-      `}</style>
     </div>
   );
 };
+
+export default ChatView;

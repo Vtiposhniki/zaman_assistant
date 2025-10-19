@@ -5,10 +5,10 @@ import React from 'react';
 
 export const ProductsView = () => {
   const products = [
-    { name: 'Выгодный', type: 'Депозит', yield: 17, min: 500000, desc: '17% годовых, 3-12 мес' },
-    { name: 'Овернайт', type: 'Депозит', yield: 12, min: 1000000, desc: '12% годовых, 1-12 мес' },
-    { name: 'Беззалоговый кредит', type: 'Кредит', yield: null, min: 100000, desc: 'До 10M ₸, 3-60 мес' },
-    { name: 'Бизнес карта', type: 'Карта', yield: null, min: 100000, desc: 'Лимит до 10M ₸' }
+    { name: 'Финансирования', type: 'Онлайн', yield: 17, min: 60000, desc: '17% годовых, 3-60 мес' },
+    { name: 'Вакала Zaman', type: 'Агентский депозит', yield: 12, min: 50000, desc: 'до 20% годовых, 3-36 мес' },
+    { name: 'Карты', type: 'Виртуальная карта', yield: null, min: 0, desc: 'срок работы 3 года' },
+    { name: 'Для корпоративных клиентов', type: 'Онлайн-банк', yield: null, min: 100000, desc: 'Лимит до 10M ₸' }
   ];
 
   return (

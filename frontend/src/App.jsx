@@ -6,7 +6,7 @@ import { API_CONFIG } from './config/api';
 import { AnalyticsService } from './services/analytics.service';
 import { ChatService } from './services/chat.service';
 import { GoalsService } from './services/goals.service';
-import { ChatView } from './components/Chat/ChatView';
+import ChatView from './components/Chat/ChatView';
 import { GoalsView } from './components/Goals/GoalView';
 import { ProductsView } from './components/Products/ProductsView';
 import { AnalyticsView } from './components/Analytics/AnalyticsView';

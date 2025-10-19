@@ -10,7 +10,7 @@ from config import settings
 from core.events import startup_handler, shutdown_handler
 from api.routes import (
     goals_router,
-    redis_goals_router,
+    # redis_goals_router,
     chat_router,
     products_router,
     analytics_router,
@@ -34,7 +34,7 @@ def create_app() -> FastAPI:
         version="4.0.0",
         description="AI-powered финансовый ассистент для Zaman Bank (Refactored)",
         docs_url="/docs",
-        redoc_url="/redoc",
+        # redoc_url="/redoc",
         openapi_url="/openapi.json"
     )
     
@@ -50,7 +50,7 @@ def create_app() -> FastAPI:
     # Регистрация роутеров
     app.include_router(health_router, tags=["Health"])
     app.include_router(goals_router, prefix="/goals", tags=["Goals"])
-    app.include_router(redis_goals_router, tags=["Redis Goals"])
+    #app.include_router(redis_goals_router, tags=["Redis Goals"])
     app.include_router(chat_router, prefix="/chat", tags=["Chat"])
     app.include_router(products_router, prefix="/products", tags=["Products"])
     app.include_router(analytics_router, prefix="/analytics", tags=["Analytics"])

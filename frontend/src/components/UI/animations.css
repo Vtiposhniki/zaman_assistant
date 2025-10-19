@@ -1,0 +1,221 @@
+/**
+ * Анимации для ZAMAN AI
+ * Содержит все keyframes анимации для чата и UI компонентов
+ */
+
+/* Анимация появления сообщений */
+@keyframes slideIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(10px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+/* Анимация загрузки (прыгающие точки) */
+@keyframes bounce {
+  0%, 80%, 100% { 
+    transform: translateY(0); 
+  }
+  40% { 
+    transform: translateY(-10px); 
+  }
+}
+
+/* Анимация пульсации */
+@keyframes pulse {
+  0%, 100% { 
+    opacity: 1; 
+    transform: scale(1); 
+  }
+  50% { 
+    opacity: 0.8; 
+    transform: scale(1.05); 
+  }
+}
+
+/* Анимация печати (для индикатора набора текста) */
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Анимация подключения WebSocket */
+@keyframes connect {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Анимация отключения WebSocket */
+@keyframes disconnect {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+/* Анимация записи голоса */
+@keyframes recording {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+}
+
+/* Анимация воспроизведения речи */
+@keyframes speaking {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+/* Анимация появления уведомлений */
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Анимация исчезновения уведомлений */
+@keyframes slideOutToTop {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+}
+
+/* Анимация загрузки (спиннер) */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Анимация волны (для аудио визуализации) */
+@keyframes wave {
+  0%, 100% {
+    height: 4px;
+  }
+  50% {
+    height: 20px;
+  }
+}
+
+/* CSS классы для применения анимаций */
+.animate-slide-in {
+  animation: slideIn 0.3s ease;
+}
+
+.animate-bounce {
+  animation: bounce 1.4s infinite;
+}
+
+.animate-pulse {
+  animation: pulse 1s infinite;
+}
+
+.animate-typing {
+  animation: typing 1.4s infinite;
+}
+
+.animate-connect {
+  animation: connect 0.5s ease;
+}
+
+.animate-disconnect {
+  animation: disconnect 0.3s ease;
+}
+
+.animate-recording {
+  animation: recording 1.5s infinite;
+}
+
+.animate-speaking {
+  animation: speaking 1s infinite;
+}
+
+.animate-slide-in-from-top {
+  animation: slideInFromTop 0.3s ease;
+}
+
+.animate-slide-out-to-top {
+  animation: slideOutToTop 0.3s ease;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-wave {
+  animation: wave 1s ease-in-out infinite;
+}
+
+/* Задержки для анимаций */
+.animate-delay-100 {
+  animation-delay: 0.1s;
+}
+
+.animate-delay-200 {
+  animation-delay: 0.2s;
+}
+
+.animate-delay-300 {
+  animation-delay: 0.3s;
+}
+
+.animate-delay-400 {
+  animation-delay: 0.4s;
+}
+
+/* Утилиты для анимаций */
+.animation-fill-both {
+  animation-fill-mode: both;
+}
+
+.animation-fill-forwards {
+  animation-fill-mode: forwards;
+}
+
+.animation-fill-backwards {
+  animation-fill-mode: backwards;
+}
