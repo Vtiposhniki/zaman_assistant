@@ -50,6 +50,14 @@ class Settings:
     
     # ===== WebSocket =====
     WS_MESSAGE_MAX_SIZE: int = 1024 * 1024  # 1MB
+    
+    # ===== Redis =====
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
+    REDIS_MAX_CONNECTIONS: int = int(os.getenv("REDIS_MAX_CONNECTIONS", "10"))
+    REDIS_RETRY_ON_TIMEOUT: bool = os.getenv("REDIS_RETRY_ON_TIMEOUT", "true").lower() in ("1", "true", "yes")
+    REDIS_SOCKET_TIMEOUT: int = int(os.getenv("REDIS_SOCKET_TIMEOUT", "5"))
+    REDIS_SOCKET_CONNECT_TIMEOUT: int = int(os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT", "5"))
+    
     # ===== Whisper =====
     WHISPER_ENABLED: bool = os.getenv("WHISPER_ENABLED", "true").lower() in ("1", "true", "yes")
     WHISPER_DEFAULT_LANGUAGE: str = os.getenv("WHISPER_DEFAULT_LANGUAGE", "ru")
