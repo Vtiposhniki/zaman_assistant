@@ -107,11 +107,11 @@ export default function App() {
     setLoading(true);
     try {
       await goalsService.updateGoal(goalId, { current_savings: currentSavings });
-      await loadGoals();
+      await loadGoals(); // Перезагрузка всех целей
       addNotification({
         type: 'success',
-        title: 'Цель обновлена',
-        message: 'Накопления успешно обновлены!'
+        title: 'Успешно!',
+        message: 'Накопления обновлены'
       });
     } catch (error) {
       console.error('Failed to update goal:', error);
@@ -119,6 +119,33 @@ export default function App() {
         type: 'error',
         title: 'Ошибка',
         message: 'Не удалось обновить цель. Попробуйте еще раз.'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Также добавьте обработчик удаления:
+  const handleDeleteGoal = async (goalId) => {
+    if (!window.confirm('Вы уверены, что хотите удалить эту цель?')) {
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await goalsService.deleteGoal(goalId);
+      await loadGoals();
+      addNotification({
+        type: 'success',
+        title: 'Цель удалена',
+        message: 'Цель успешно удалена'
+      });
+    } catch (error) {
+      console.error('Failed to delete goal:', error);
+      addNotification({
+        type: 'error',
+        title: 'Ошибка',
+        message: 'Не удалось удалить цель'
       });
     } finally {
       setLoading(false);
@@ -170,15 +197,16 @@ export default function App() {
           />
         );
       
-      case 'goals':
-        return (
-          <GoalsView 
-            goals={goals} 
-            onCreateGoal={handleCreateGoal} 
-            onUpdateGoal={handleUpdateGoal} 
-            loading={loading} 
-          />
-        );
+        case 'goals':
+          return (
+            <GoalsView 
+              goals={goals} 
+              onCreateGoal={handleCreateGoal} 
+              onUpdateGoal={handleUpdateGoal}
+              onDeleteGoal={handleDeleteGoal}
+              loading={loading} 
+            />
+          );
       
       case 'products':
         return <ProductsView />;

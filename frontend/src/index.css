@@ -40,8 +40,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(to bottom right, #0f172a, #134e4a, #155e75);
-  color: #ffffff;
+  background: #f9fafb;
+  color: #111827;
   overflow-x: hidden;
 }
 
@@ -85,12 +85,21 @@ button:active {
   transform: scale(0.98);
 }
 
+/* Убираем возможные конфликты с input-полями */
+input, select, textarea {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
 input,
 select,
 textarea {
   font-family: inherit;
   font-size: 1rem;
   transition: all 0.2s;
+  color: #111827;
+  background-color: white;
 }
 
 input:focus,
@@ -101,7 +110,7 @@ textarea:focus {
 
 input::placeholder,
 textarea::placeholder {
-  color: rgba(255, 255, 255, 0.5);
+  color: #9ca3af;
 }
 
 ::-webkit-scrollbar {
@@ -302,4 +311,61 @@ textarea::placeholder {
 
 .typing-indicator {
   animation: fadeInOut 3s ease-in-out infinite;
+}
+
+/* ==================== GOALS PAGE ANIMATIONS ==================== */
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Input focus animations */
+input:focus {
+  animation: fadeIn 0.2s ease;
+}
+
+/* Button hover effects */
+button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+button:not(:disabled):active {
+  transform: translateY(0);
+}
+
+/* Goal card hover effect */
+.goal-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(45, 154, 134, 0.15);
 }
