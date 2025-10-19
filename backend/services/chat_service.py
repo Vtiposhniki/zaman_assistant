@@ -1,7 +1,8 @@
-# services/chat_service.py — Сервис для чата с AI (v2.2 Stable)
+# services/chat_service.py — Сервис для чата с AI (v2.3 FIXED)
 import json
 import asyncio
 import logging
+import time
 from typing import List, Dict, Optional
 from fastapi import WebSocket
 from sqlalchemy.orm import Session
@@ -78,7 +79,7 @@ class ChatService:
         return {"reply": reply, "latency_ms": round(latency, 2)}
 
     # =====================================================
-    # 💬 WebSocket чат с потоковой передачей
+    # 💬 WebSocket чат с потоковой передачей (FIXED)
     # =====================================================
     async def process_websocket_message(
         self,
@@ -87,69 +88,134 @@ class ChatService:
         websocket: WebSocket,
         system_prompt: Optional[str] = None,
         context: Optional[dict] = None
-    ):
-        """Обработка WebSocket-сообщения с поддержкой стриминга."""
+    ) -> Optional[dict]:
+        """
+        Обработка WebSocket-сообщения с поддержкой стриминга.
+        
+        ВАЖНО: Этот метод сам отправляет ответ через websocket!
+        Возвращает результат только для логирования.
+        """
         logger.info(f"💬 [ChatService] process_websocket_message вызван (user_id={user_id})")
 
-        content = message.get("content", "")
+        content = message.get("content", "").strip()
         if not content:
+            logger.warning("⚠️ Пустое содержимое сообщения")
             await websocket.send_json({"error": "Пустое сообщение"})
-            return
+            return None
 
-        logger.info(f"🧾 Входящее сообщение: {content}")
+        logger.info(f"🧾 Входящее сообщение: {content[:100]}...")
 
-        # 1️⃣ FAQ
-        faq_answer = self._find_faq_answer(content)
-        if faq_answer:
-            await websocket.send_json({"reply": faq_answer, "type": "faq", "from_cache": False})
-            return
+        try:
+            # 1️⃣ Проверка FAQ
+            faq_answer = self._find_faq_answer(content)
+            if faq_answer:
+                logger.info(f"📋 FAQ ответ найден")
+                await websocket.send_json({
+                    "type": "faq",
+                    "reply": faq_answer,
+                    "done": True
+                })
+                asyncio.create_task(
+                    self._log_conversation_async(user_id, "user", content)
+                )
+                asyncio.create_task(
+                    self._log_conversation_async(user_id, "assistant", faq_answer, 0)
+                )
+                return {"reply": faq_answer, "type": "faq"}
 
-        # 2️⃣ Кэш
-        cached = await self.cache.get("chat", content)
-        if cached:
-            await websocket.send_json({"reply": cached, "type": "cached", "from_cache": True})
-            return
+            # 2️⃣ Проверка кэша
+            cached = await self.cache.get("chat", content)
+            if cached:
+                logger.info(f"⚡ Кэш попадание для: {content[:50]}...")
+                await websocket.send_json({
+                    "type": "cached",
+                    "reply": cached,
+                    "done": True
+                })
+                asyncio.create_task(
+                    self._log_conversation_async(user_id, "user", content)
+                )
+                asyncio.create_task(
+                    self._log_conversation_async(user_id, "assistant", cached, 0)
+                )
+                return {"reply": cached, "type": "cached"}
 
-        # 3️⃣ Подготовка сообщений
-        sys_prompt = {"role": "system", "content": self._build_system_prompt(system_prompt, context)}
-        messages = [sys_prompt, {"role": "user", "content": content}]
+            # 3️⃣ Подготовка сообщений для LLM
+            sys_prompt = {
+                "role": "system",
+                "content": self._build_system_prompt(system_prompt, context)
+            }
+            messages = [sys_prompt, {"role": "user", "content": content}]
 
-        logger.info(f"⚙️ Запрос в LLMClient...")
-        reply_text, latency = await self.llm.chat_completion(messages)
-        logger.info(f"✅ Ответ от LLMClient ({latency:.2f} ms): {reply_text[:150]}")
+            logger.info(f"⚙️ Запрос в LLMClient для user_id={user_id}...")
+            
+            start_time = time.time()
+            reply_text, latency = await self.llm.chat_completion(messages)
+            logger.info(f"✅ Ответ от LLMClient ({latency:.2f} ms): {reply_text[:150]}")
 
-        # 4️⃣ Стриминг частями
-        chunk_size = 80
-        full_reply = ""
-        for i in range(0, len(reply_text), chunk_size):
-            chunk = reply_text[i:i + chunk_size]
-            full_reply += chunk
-            done = (i + chunk_size) >= len(reply_text)
+            # 4️⃣ Стриминг ответа частями через WebSocket
+            chunk_size = 80
+            full_reply = ""
+            
+            for i in range(0, len(reply_text), chunk_size):
+                chunk = reply_text[i:i + chunk_size]
+                full_reply += chunk
+                is_last = (i + chunk_size) >= len(reply_text)
 
-            await websocket.send_json({
-                "type": "stream",
-                "reply": chunk,
-                "done": done,
-                "latency_ms": latency if i == 0 else 0
-            })
-            await asyncio.sleep(0.03)
+                try:
+                    await websocket.send_json({
+                        "type": "stream",
+                        "reply": chunk,
+                        "done": is_last,
+                        "latency_ms": latency if i == 0 else 0
+                    })
+                    logger.debug(f"📤 Отправлен чанк {i//chunk_size + 1}")
+                except Exception as e:
+                    logger.error(f"❌ Ошибка отправки чанка: {e}")
+                    break
+                
+                # Имитация потока (небольшая задержка)
+                await asyncio.sleep(0.03)
 
-        # 5️⃣ Финальное сообщение
-        await websocket.send_json({
-            "type": "stream",
-            "reply": full_reply,
-            "done": True,
-            "latency_ms": latency
-        })
+            # 5️⃣ Финальное завершающее сообщение
+            try:
+                await websocket.send_json({
+                    "type": "stream",
+                    "reply": full_reply,
+                    "done": True,
+                    "latency_ms": latency
+                })
+                logger.info(f"✅ Финальный ответ отправлен пользователю {user_id}")
+            except Exception as e:
+                logger.error(f"❌ Ошибка отправки финального сообщения: {e}")
 
-        # 6️⃣ Кэш и лог
-        await self.cache.set("chat", content, reply_text)
-        asyncio.create_task(self._log_conversation_async(user_id, "user", content))
-        asyncio.create_task(self._log_conversation_async(user_id, "assistant", reply_text, latency))
+            # 6️⃣ Кэширование и логирование
+            await self.cache.set("chat", content, full_reply)
+            asyncio.create_task(
+                self._log_conversation_async(user_id, "user", content)
+            )
+            asyncio.create_task(
+                self._log_conversation_async(user_id, "assistant", full_reply, latency)
+            )
 
-        logger.info(f"📤 Ответ отправлен пользователю {user_id}. Длина: {len(reply_text)}")
+            logger.info(f"📊 Обработка завершена. Ответ: {len(full_reply)} символов")
+            
+            return {
+                "reply": full_reply,
+                "latency_ms": latency,
+                "status": "success"
+            }
 
-        return {"reply": reply_text, "latency_ms": latency}
+        except Exception as e:
+            logger.exception(f"💥 Ошибка обработки WebSocket сообщения: {e}")
+            try:
+                await websocket.send_json({
+                    "error": f"Внутренняя ошибка: {str(e)}",
+                    "type": "error"
+                })
+            except Exception as send_err:
+                logger.error(f"❌ Не удалось отправить ошибку: {send_err}")
+            return None
 
     # =====================================================
     # 🧩 Формирование System Prompt
@@ -168,16 +234,32 @@ class ChatService:
     # =====================================================
     # 🧾 Логирование
     # =====================================================
-    async def _log_conversation_async(self, user_id, role, content, latency_ms=None):
+    async def _log_conversation_async(
+        self,
+        user_id: Optional[int],
+        role: str,
+        content: str,
+        latency_ms: Optional[float] = None
+    ):
         """Асинхронное логирование в базу."""
+        if not self.db:
+            logger.debug("Database not available for logging")
+            return
+
         from database import SessionLocal
 
         def save():
             db = SessionLocal()
             try:
-                entry = ConversationLog(user_id=user_id, role=role, content=content, latency_ms=latency_ms)
+                entry = ConversationLog(
+                    user_id=user_id,
+                    role=role,
+                    content=content,
+                    latency_ms=latency_ms
+                )
                 db.add(entry)
                 db.commit()
+                logger.debug(f"✅ Лог сохранён: {role} ({len(content)} символов)")
             except Exception as e:
                 logger.exception(f"❌ Ошибка логирования: {e}")
                 db.rollback()

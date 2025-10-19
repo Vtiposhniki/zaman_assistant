@@ -99,16 +99,14 @@ def validate_config():
     errors = []
     
     # Критичные проверки
-    if not settings.OPENAI_HUB_KEY and not settings.MOCK_MODE:
-        warnings.append("⚠️ OPENAI_HUB_KEY not set, but continuing (hackathon mode)")
+  #  if not settings.OPENAI_HUB_KEY and not settings.MOCK_MODE:
+      ## if not settings.ADMIN_TOKEN:
+      #  errors.append("❌ ADMIN_TOKEN is not set!")
+   # elif settings.ADMIN_TOKEN == "supersecret":
+      #  warnings.append("⚠️ ADMIN_TOKEN is default value! Change in production.")
     
-    if not settings.ADMIN_TOKEN:
-        errors.append("❌ ADMIN_TOKEN is not set!")
-    elif settings.ADMIN_TOKEN == "supersecret":
-        warnings.append("⚠️ ADMIN_TOKEN is default value! Change in production.")
-    
-    if not PRODUCTS:
-        warnings.append("⚠️ No products loaded. Recommendations will not work.")
+    #if not PRODUCTS:
+      #  warnings.append("⚠️ No products loaded. Recommendations will not work.")
     
     # Info
     print(f"\n{'='*60}")

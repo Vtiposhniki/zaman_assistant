@@ -1,8 +1,12 @@
 # main.py — ZAMAN Assistant Backend (v3.1 — Stable Full Build)
 import os
+import sys
+print("Python path:", sys.path, flush=True)
+print("Starting app...", flush=True)
 import asyncio
 import logging
 import tempfile
+from services.tts_service import TTSService
 from datetime import datetime
 from typing import Optional
 
@@ -58,12 +62,13 @@ app = FastAPI(
     description="AI-powered financial assistant for Zaman Bank"
 )
 
+# ===== CORS MIDDLEWARE (MUST BE FIRST!) =====
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
 
 # ===== CONNECTION MANAGER =====
@@ -90,6 +95,13 @@ manager = ConnectionManager()
 @app.on_event("startup")
 async def startup_event():
     global whisper_service
+    # TTS init
+    tts_service = TTSService(
+        url=settings.OPENAI_HUB_URL,
+        api_key=settings.OPENAI_HUB_KEY,
+        mock_mode=settings.MOCK_MODE
+    )
+    logger.info("✅ TTS initialized")
     logger.info("🚀 Starting Zaman Assistant v3.1")
 
     # DB init
@@ -214,12 +226,10 @@ async def websocket_chat(websocket: WebSocket, user_id: int):
             else:
                 system_prompt = "Ты — ментор Zaman. Мотивируй и вдохновляй, ссылайся на цели пользователя."
 
-            # Вызов ChatService с логированием до/после
+            # Вызов ChatService
             try:
                 logger.info(f"⚙️ Вызываем ChatService.process_websocket_message для user_id={user_id}")
 
-                # ChatService сам может стримить части ответа через websocket,
-                # а в конце вернуть финальный результат (или None).
                 result = await chat_service.process_websocket_message(
                     message=message,
                     user_id=user_id,
@@ -230,17 +240,8 @@ async def websocket_chat(websocket: WebSocket, user_id: int):
 
                 logger.info(f"📤 Ответ от ChatService для {user_id}: {('present' if result else 'none')}")
 
-                # Если ChatService вернул текст явно — отправим финальный пакет
-                if result:
-                    reply_text = result.get("reply") or result.get("text") or result.get("message")
-                    if reply_text:
-                        # если ChatService уже стримил, дублировать не обязательно,
-                        # но отправляем завершающее сообщение с флагом done=True для безопасности.
-                        await websocket.send_json({"type": "stream", "reply": reply_text, "done": True})
-                        logger.info(f"✅ WS reply sent (final) to user {user_id}: {reply_text[:80]}...")
             except Exception as e:
                 logger.exception("❌ WS message error")
-                # Возвращаем ошибку клиенту — не закрываем соединение немедленно
                 try:
                     await websocket.send_json({"error": f"Internal error: {str(e)}"})
                 except Exception:
@@ -306,6 +307,42 @@ async def audio_message(file: UploadFile = File(...), user_id: Optional[int] = Q
     return result
 
 # ============================================================
+# TTS (Text-to-Speech)
+# ============================================================
+@app.post("/audio/speak")
+async def text_to_speech(request: Request):
+    """Convert text to speech"""
+    await rate_limiter.check_limit(request.client.host)
+    
+    try:
+        data = await request.json()
+        text = data.get("text", "")
+        voice = data.get("voice", "alloy")
+        speed = data.get("speed", 1.0)
+        
+        if not text:
+            raise HTTPException(status_code=400, detail="Text is required")
+            
+        audio_data = await tts_service.text_to_speech(
+            text=text,
+            voice=voice,
+            speed=speed
+        )
+        
+        from fastapi.responses import Response
+        return Response(
+            content=audio_data,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": "inline; filename=speech.mp3"
+            }
+        )
+    except Exception as e:
+        logger.exception(f"❌ TTS error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
 # FEEDBACK
 # ============================================================
 @app.post("/feedback")
@@ -339,8 +376,64 @@ async def reset_db(confirm: str = "", db: Session = Depends(get_db)):
     db.query(ConversationLog).delete()
     db.query(Metric).delete()
     db.commit()
-    await cache_manager.clear_all()
+    asyncio.create_task(cache_manager.clear_all())
     return {"message": "Database reset complete"}
+# Добавьте в секцию импортов после других сервисов:
+from services.tts_service import TTSService
+
+# Добавьте после whisper_service в startup_event:
+tts_service = None
+whisper_service = None
+
+@app.on_event("startup")
+async def startup_event():
+    global whisper_service, tts_service
+    # ... существующий код ...
+    
+    # TTS init
+    tts_service = TTSService(
+        url=settings.OPENAI_HUB_URL,
+        api_key=settings.OPENAI_HUB_KEY,
+        mock_mode=settings.MOCK_MODE
+    )
+    logger.info("✅ TTS initialized")
+
+# Добавьте новый endpoint для TTS:
+@app.post("/audio/speak")
+async def text_to_speech(
+    request: Request,
+    voice: str = "alloy",
+    speed: float = 1.0
+):
+    """Convert text to speech"""
+    await rate_limiter.check_limit(request.client.host)
+    
+    try:
+        data = await request.json()
+        text = data.get("text", "")
+        voice = data.get("voice", voice)
+        speed = data.get("speed", speed)
+        
+        if not text:
+            raise HTTPException(status_code=400, detail="Text is required")
+            
+        audio_data = await tts_service.text_to_speech(
+            text=text,
+            voice=voice,
+            speed=speed
+        )
+        
+        from fastapi.responses import Response
+        return Response(
+            content=audio_data,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": "inline; filename=speech.mp3"
+            }
+        )
+    except Exception as e:
+        logger.exception(f"❌ TTS error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================
 # RUN
