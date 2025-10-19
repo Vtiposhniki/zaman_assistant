@@ -20,7 +20,7 @@ const ChatView = ({ chatMode = 'mentor', setChatMode }) => {
   const { messages, addMessage, setMessages } = useChatHistory(`zaman_chat_${chatMode}`);
 
   // WebSocket соединение
-  const wsUrl = api.getWebSocketUrl();
+  const wsUrl = api.getWebSocketUrl(1);
   const { 
     messages: wsMessages, 
     sendMessage: sendWsMessage, 
@@ -241,7 +241,7 @@ const ChatView = ({ chatMode = 'mentor', setChatMode }) => {
           borderRadius: '8px', 
           borderLeft: `4px solid ${wsConnected ? '#2D9A86' : '#ef4444'}` 
         }}>
-          <p style={{ 
+          <div style={{ 
             fontSize: '12px', 
             color: wsConnected ? '#2D9A86' : '#ef4444', 
             fontWeight: '600', 
@@ -258,7 +258,7 @@ const ChatView = ({ chatMode = 'mentor', setChatMode }) => {
               animation: wsConnected ? 'pulse 2s infinite' : 'none'
             }} />
             {wsConnected ? 'Подключено' : 'Отключено'}
-          </p>
+          </div>
         </div>
 
         {/* Выбор режима */}

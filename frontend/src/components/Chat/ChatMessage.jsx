@@ -24,7 +24,7 @@ export const ChatMessage = ({ message, isUser }) => (
         : '0 4px 12px rgba(45, 154, 134, 0.08)',
       border: isUser ? 'none' : '2px solid #d1e5e0'
     }}>
-      {message.content}
+      {typeof message.content === 'string' ? message.content : JSON.stringify(message.content)}
     </div>
   </div>
 );

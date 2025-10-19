@@ -232,6 +232,7 @@ async def audio_to_chat(
 
 @router.post("/speak")
 async def text_to_speech(
+    data: dict,
     request: Request,
     rate_limiter: RateLimiter = Depends(get_rate_limiter)
 ):
@@ -254,7 +255,6 @@ async def text_to_speech(
     await rate_limiter.check_limit(request.client.host)
     
     try:
-        data = await request.json()
         text = data.get("text", "")
         voice = data.get("voice", "alloy")
         speed = data.get("speed", 1.0)

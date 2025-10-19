@@ -131,7 +131,7 @@ const ChatMessages = ({
             wordWrap: 'break-word',
             overflowWrap: 'break-word'
           }}>
-            {msg.content}
+{typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}
             {msg.timestamp && (
               <div style={{
                 fontSize: '11px',

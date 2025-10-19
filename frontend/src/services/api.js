@@ -202,14 +202,14 @@ class ZamanAPI {
   /**
    * Получение WebSocket URL
    */
-  getWebSocketUrl() {
+  getWebSocketUrl(userId = 1) {
     const wsUrl = import.meta.env.VITE_WS_URL;
     if (wsUrl) return wsUrl;
     
     // Fallback: конвертируем HTTP URL в WebSocket URL
     const url = new URL(this.baseURL);
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${url.toString()}ws`;
+    return `${url.toString()}chat/ws/${userId}`;
   }
 }
 

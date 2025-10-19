@@ -39,7 +39,23 @@ export const useWebSocket = (url, options = {}) => {
     };
 
     socket.onMessage = (data) => {
-      setMessages(prev => [...prev, data]);
+      // Ensure we're handling the data structure correctly
+      let messageData = data;
+      
+      // If data has the structure {text, from_cache, latency_ms}, extract the text
+      if (data && typeof data === 'object' && data.text) {
+        messageData = {
+          role: 'assistant',
+          content: data.text,
+          timestamp: new Date().toISOString(),
+          metadata: {
+            from_cache: data.from_cache,
+            latency_ms: data.latency_ms
+          }
+        };
+      }
+      
+      setMessages(prev => [...prev, messageData]);
     };
 
     return () => {

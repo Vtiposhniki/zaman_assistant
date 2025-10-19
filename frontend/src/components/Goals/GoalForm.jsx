@@ -119,7 +119,7 @@ export const GoalForm = ({ onSubmit, onCancel, loading }) => {
         }}
       />
       {errors[field] && (
-        <p style={{ 
+        <div style={{ 
           fontSize: '12px', 
           color: '#ef4444', 
           marginTop: '0.25rem',
@@ -127,8 +127,8 @@ export const GoalForm = ({ onSubmit, onCancel, loading }) => {
           alignItems: 'center',
           gap: '0.25rem'
         }}>
-          ⚠️ {errors[field]}
-        </p>
+          ⚠️ {typeof errors[field] === 'string' ? errors[field] : JSON.stringify(errors[field])}
+        </div>
       )}
     </div>
   );
